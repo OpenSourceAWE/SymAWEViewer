@@ -1,0 +1,48 @@
+{
+  "name": "@vandelint/symawe-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "UNLICENSED",
+  "description": "Browser viewer for AWE simulation runs exported as Arrow with an embedded awesIO structure topology.",
+  "files": ["dist"],
+  "main": "./dist/symawe-viewer.js",
+  "module": "./dist/symawe-viewer.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/symawe-viewer.js"
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "prepare": "pnpm build"
+  },
+  "dependencies": {
+    "apache-arrow": "^21.2.0"
+  },
+  "peerDependencies": {
+    "@react-three/drei": ">=10",
+    "@react-three/fiber": ">=9",
+    "react": ">=19",
+    "react-dom": ">=19",
+    "three": ">=0.174"
+  },
+  "devDependencies": {
+    "@react-three/drei": "^10.0.6",
+    "@react-three/fiber": "^9.1.0",
+    "@types/node": "^22.13.0",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@types/three": "^0.174.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "three": "^0.174.0",
+    "typescript": "~5.7.2",
+    "vite": "^6.2.0"
+  }
+}
