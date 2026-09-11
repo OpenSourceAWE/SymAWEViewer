@@ -1,10 +1,14 @@
 # @vandelint/SymAWEViewer
 
+> **Work in progress.** Early and unstable. The component API, the run format
+> and the package name all change without notice, and there are no tests yet.
+> Not on npm — pin a git tag if you depend on it.
+
 Browser viewer for SymbolicAWEModels runs. Reads the `.arrow` files SymAWE
 exports: frame columns plus an awesIO structure topology carried in the schema
 metadata.
 
-Private package. Consumed by `bart.vandelint.net` and `symawe.com`.
+Consumed by `bart.vandelint.net` and `symawe.com`.
 
 ## Use
 
@@ -56,3 +60,7 @@ against a structure it was not recorded with.
 
 Consumers pin a git tag. The site repo records which viewer tag it was built
 against, so a site tag identifies exactly one viewer build.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

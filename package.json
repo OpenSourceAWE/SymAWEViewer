@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "description": "Browser viewer for AWE simulation runs exported as Arrow with an embedded awesIO structure topology.",
   "files": ["dist"],
   "main": "./dist/SymAWEViewer.js",
