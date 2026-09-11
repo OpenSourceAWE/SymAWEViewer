@@ -1,4 +1,4 @@
-# @vandelint/SymAWEViewer
+# @vandelint/symawe-viewer
 
 > **Work in progress.** Early and unstable. The component API, the run format
 > and the package name all change without notice, and there are no tests yet.
@@ -13,7 +13,7 @@ Consumed by `bart.vandelint.net` and `symawe.com`.
 ## Use
 
 ```tsx
-import { SymAWEViewer } from "@vandelint/SymAWEViewer";
+import { SymAWEViewer } from "@vandelint/symawe-viewer";
 
 <div style={{ height: "100dvh" }}>
   <SymAWEViewer src="/sim/v3_beam_pose.arrow" />
@@ -32,7 +32,7 @@ authentication, or `fetchOptions` to let the component send credentials itself.
 For custom chrome, drop `Structure` into your own `Canvas`:
 
 ```tsx
-import { framing, loadRun, Structure } from "@vandelint/SymAWEViewer";
+import { framing, loadRun, Structure } from "@vandelint/symawe-viewer";
 ```
 
 ## Peer dependencies
