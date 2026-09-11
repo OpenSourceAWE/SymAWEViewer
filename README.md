@@ -1,4 +1,4 @@
-# @vandelint/symawe-viewer
+# @symawe/viewer
 
 > **Work in progress.** Early and unstable. The component API, the run format
 > and the package name all change without notice, and there are no tests yet.
@@ -8,12 +8,12 @@ Browser viewer for SymbolicAWEModels runs. Reads the `.arrow` files SymAWE
 exports: frame columns plus an awesIO structure topology carried in the schema
 metadata.
 
-Consumed by `bart.vandelint.net` and `symawe.com`.
+Consumed by `symawe.com`.
 
 ## Use
 
 ```tsx
-import { SymAWEViewer } from "@vandelint/symawe-viewer";
+import { SymAWEViewer } from "@symawe/viewer";
 
 <div style={{ height: "100dvh" }}>
   <SymAWEViewer src="/sim/v3_beam_pose.arrow" />
@@ -32,7 +32,7 @@ authentication, or `fetchOptions` to let the component send credentials itself.
 For custom chrome, drop `Structure` into your own `Canvas`:
 
 ```tsx
-import { framing, loadRun, Structure } from "@vandelint/symawe-viewer";
+import { framing, loadRun, Structure } from "@symawe/viewer";
 ```
 
 ## Peer dependencies
