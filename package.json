@@ -1,18 +1,18 @@
 {
-  "name": "@vandelint/symawe-viewer",
+  "name": "@vandelint/SymAWEViewer",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "license": "UNLICENSED",
   "description": "Browser viewer for AWE simulation runs exported as Arrow with an embedded awesIO structure topology.",
   "files": ["dist"],
-  "main": "./dist/symawe-viewer.js",
-  "module": "./dist/symawe-viewer.js",
+  "main": "./dist/SymAWEViewer.js",
+  "module": "./dist/SymAWEViewer.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/symawe-viewer.js"
+      "import": "./dist/SymAWEViewer.js"
     }
   },
   "sideEffects": false,

@@ -12,7 +12,7 @@ export default defineConfig({
     lib: {
       entry: resolve(__dirname, "src/index.ts"),
       formats: ["es"],
-      fileName: () => "symawe-viewer.js",
+      fileName: () => "SymAWEViewer.js",
     },
     rollupOptions: {
       external: [

@@ -1,4 +1,4 @@
-# @vandelint/symawe-viewer
+# @vandelint/SymAWEViewer
 
 Browser viewer for SymbolicAWEModels runs. Reads the `.arrow` files SymAWE
 exports: frame columns plus an awesIO structure topology carried in the schema
@@ -9,22 +9,26 @@ Private package. Consumed by `bart.vandelint.net` and `symawe.com`.
 ## Use
 
 ```tsx
-import { SymAWEViewer } from "@vandelint/symawe-viewer";
+import { SymAWEViewer } from "@vandelint/SymAWEViewer";
 
 <div style={{ height: "100dvh" }}>
   <SymAWEViewer src="/sim/v3_beam_pose.arrow" />
 </div>;
 ```
 
-The component fills its parent, brings its own canvas and camera framing, and
-depends on no CSS framework. Pass `data` instead of `src` when the host has
-already fetched the bytes behind authentication, or `fetchOptions` to let the
-component send credentials itself.
+**Size the parent, not the viewer.** The component sets `height: 100%` inline,
+which a `className` cannot override — so `<SymAWEViewer className="h-dvh" />`
+collapses to nothing. Give the wrapper the height, or pass `style`, which does
+win. It warns on the console when it lands in a zero-height box.
+
+It brings its own canvas and camera framing, and depends on no CSS framework.
+Pass `data` instead of `src` when the host has already fetched the bytes behind
+authentication, or `fetchOptions` to let the component send credentials itself.
 
 For custom chrome, drop `Structure` into your own `Canvas`:
 
 ```tsx
-import { Structure, framing, loadRun } from "@vandelint/symawe-viewer";
+import { framing, loadRun, Structure } from "@vandelint/SymAWEViewer";
 ```
 
 ## Peer dependencies

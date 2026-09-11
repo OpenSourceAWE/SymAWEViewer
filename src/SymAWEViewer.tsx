@@ -1,4 +1,10 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
 import { framing, Structure } from "./Structure";
@@ -67,18 +73,32 @@ export function SymAWEViewer({
   const [run, setRun] = useState<Run | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const latest = useRef({ fetchOptions, onLoad, onError });
+  latest.current = { fetchOptions, onLoad, onError };
+
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (box.current && box.current.clientHeight === 0) {
+      console.warn(
+        "SymAWEViewer rendered into a zero-height box. It fills its parent, " +
+          "so give the parent a height — a className on the viewer itself " +
+          "cannot override its inline height.",
+      );
+    }
+  });
+
   useEffect(() => {
     let live = true;
     const fail = (err: unknown) => {
       if (!live) return;
       const wrapped = err instanceof Error ? err : new Error(String(err));
       setError(wrapped.message);
-      onError?.(wrapped);
+      latest.current.onError?.(wrapped);
     };
     const succeed = (loaded: Run) => {
       if (!live) return;
       setRun(loaded);
-      onLoad?.(loaded);
+      latest.current.onLoad?.(loaded);
     };
 
     setRun(null);
@@ -91,7 +111,7 @@ export function SymAWEViewer({
         fail(err);
       }
     } else if (src) {
-      loadRun(src, fetchOptions).then(succeed, fail);
+      loadRun(src, latest.current.fetchOptions).then(succeed, fail);
     } else {
       fail(new Error("SymAWEViewer needs either a src or data prop"));
     }
@@ -99,12 +119,11 @@ export function SymAWEViewer({
     return () => {
       live = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src, data, fetchOptions]);
+  }, [src, data]);
 
   if (error) {
     return (
-      <div className={className} style={{ ...centred, ...style }}>
+      <div ref={box} className={className} style={{ ...centred, ...style }}>
         <div style={{ maxWidth: "36rem", padding: "2rem" }}>
           <p style={{ color: "#e0a44a", margin: 0 }}>failed to load run</p>
           <p style={{ color: "#c8ccd4", marginTop: "0.75rem" }}>{error}</p>
@@ -115,7 +134,7 @@ export function SymAWEViewer({
 
   if (!run) {
     return (
-      <div className={className} style={{ ...centred, ...style }}>
+      <div ref={box} className={className} style={{ ...centred, ...style }}>
         <p style={{ color: "#9aa0ad", margin: 0 }}>loading…</p>
       </div>
     );
@@ -126,7 +145,7 @@ export function SymAWEViewer({
   const meta = run.topology.metadata;
 
   return (
-    <div className={className} style={{ ...fill, ...style }}>
+    <div ref={box} className={className} style={{ ...fill, ...style }}>
       <Canvas
         camera={{
           position: [centre.x + span, centre.y + span * 0.4, centre.z + span],
