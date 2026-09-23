@@ -29,7 +29,26 @@ It brings its own canvas and camera framing, and depends on no CSS framework.
 Pass `data` instead of `src` when the host has already fetched the bytes behind
 authentication, or `fetchOptions` to let the component send credentials itself.
 
-For custom chrome, drop `Structure` into your own `Canvas`:
+## What it draws
+
+Everything is read from the structure document, and nothing is guessed from
+names:
+
+- **Segments by role.** A segment of a tether some winch reels is the power
+  path; of a tether no winch reels, a tether; one of the pair a pulley trades
+  length between, a pulley line; anything else, fixed bridle.
+- **Tubes** as cylinders at their `diameter`, between their two bodies. Frames
+  carry points only, so a body moves with the mean displacement of the points
+  fixed to it, and a body with none with the bodies its tubes join it to.
+- **The winch point** as a cone: the ground anchor.
+- **Bodies and stations** as groups of points. Clicking a point highlights its
+  body, clicking again each station it belongs to.
+
+`palette` recolors any of these; the overlay carries a legend of the roles the
+run has.
+
+For custom chrome, drop `Structure` into your own `Canvas`, with `highlight`
+and `onPick` for the groups:
 
 ```tsx
 import { framing, loadRun, Structure } from "@symawe/viewer";

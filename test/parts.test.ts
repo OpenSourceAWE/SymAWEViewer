@@ -24,7 +24,11 @@ describe("segmentRoles", () => {
     const document = example("v3_psm_structure");
     document.winches!.data = [];
     const { topology } = decodeRun(runOf(document));
-    expect(countRoles(segmentRoles(topology))).toEqual({ tether: 6, pulley: 12, bridle: 77 });
+    expect(countRoles(segmentRoles(topology))).toEqual({
+      tether: 6,
+      pulley: 12,
+      bridle: 77,
+    });
   });
 });
 

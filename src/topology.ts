@@ -253,13 +253,15 @@ export function segmentPositions(run: Run, frame: Frame): Float32Array {
   return out;
 }
 
-/** Flat `[x, y, z, ...]` positions for every point in `frame`. */
-export function pointPositions(frame: Frame): Float32Array {
-  const out = new Float32Array(frame.x.length * 3);
-  for (let i = 0; i < frame.x.length; i++) {
-    out[i * 3] = frame.x[i];
-    out[i * 3 + 1] = frame.y[i];
-    out[i * 3 + 2] = frame.z[i];
+/** Flat `[x, y, z, ...]` positions in `frame` of the points at `indices`, or of all. */
+export function pointPositions(frame: Frame, indices?: number[]): Float32Array {
+  const count = indices?.length ?? frame.x.length;
+  const out = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const point = indices ? indices[i] : i;
+    out[i * 3] = frame.x[point];
+    out[i * 3 + 1] = frame.y[point];
+    out[i * 3 + 2] = frame.z[point];
   }
   return out;
 }

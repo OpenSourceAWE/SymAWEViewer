@@ -40,6 +40,12 @@ export function segmentRoles(topology: Topology): SegmentRole[] {
 /** The blocks whose rows group points: the points fixed to a body, or a station's. */
 export type PointGroupBlock = "bodies" | "stations";
 
+/** A body's or a station's points, named by the block and row they come from. */
+export interface PointGroup {
+  block: PointGroupBlock;
+  name: string;
+}
+
 /**
  * Each body's or each station's name to the indices of its points, in the order
  * the document lists them. A body no point is fixed to has no entry.

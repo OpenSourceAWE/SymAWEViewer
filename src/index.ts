@@ -6,13 +6,13 @@ export {
   Z_UP_TO_Y_UP,
   type Palette,
   type Pick,
-  type PointGroup,
   type StructureProps,
 } from "./Structure";
 export {
   bodyPositions,
   pointGroups,
   segmentRoles,
+  type PointGroup,
   type PointGroupBlock,
   type SegmentRole,
 } from "./parts";

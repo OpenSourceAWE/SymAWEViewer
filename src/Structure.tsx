@@ -5,7 +5,7 @@ import {
   bodyPositions,
   pointGroups,
   segmentRoles,
-  type PointGroupBlock,
+  type PointGroup,
   type SegmentRole,
 } from "./parts";
 import {
@@ -16,7 +16,7 @@ import {
   type Frame,
   type Run,
 } from "./topology";
-import type { NamePair } from "./generated/structure";
+import type { NamePair, OptionalName } from "./generated/structure";
 
 /** The simulation frame is z-up; three.js is y-up. */
 export const Z_UP_TO_Y_UP: [number, number, number] = [-Math.PI / 2, 0, 0];
@@ -29,6 +29,7 @@ export interface Palette extends Record<SegmentRole, string> {
   highlight: string;
 }
 
+/** The colors `Structure` draws in where its `palette` names none. */
 export const DEFAULT_PALETTE: Palette = {
   power: "#ff7a45",
   tether: "#e8c547",
@@ -39,12 +40,6 @@ export const DEFAULT_PALETTE: Palette = {
   anchor: "#ff7a45",
   highlight: "#ff4fa3",
 };
-
-/** A body's or a station's points, named by the block and row they come from. */
-export interface PointGroup {
-  block: PointGroupBlock;
-  name: string;
-}
 
 /** A clicked point, with the body and the stations it belongs to. */
 export interface Pick {
@@ -87,7 +82,7 @@ export function tubeMatrices(run: Run, frame: Frame): THREE.Matrix4[] {
 
 /** The point at `index` with the groups it belongs to, its body first. */
 function pickOf(run: Run, index: number): Pick {
-  const body = columnValues<string | null>(run.topology.points, "body")[index];
+  const body = columnValues<OptionalName>(run.topology.points, "body")[index];
   const groups: PointGroup[] = body === null ? [] : [{ block: "bodies", name: body }];
   for (const [name, members] of pointGroups(run, "stations")) {
     if (members.includes(index)) groups.push({ block: "stations", name });
@@ -95,11 +90,14 @@ function pickOf(run: Run, index: number): Pick {
   return { point: columnValues<string>(run.topology.points, "name")[index], groups };
 }
 
-/** Flat `[r, g, b, ...]` for `count` vertices, vertex `i` colored `colorOf(i)`. */
-function vertexColors(count: number, colorOf: (i: number) => string): Float32Array {
-  const out = new Float32Array(count * 3);
+/** Flat `[r, g, b, ...]` for each segment's two ends, in its role's color. */
+function roleColors(roles: SegmentRole[], palette: Palette): Float32Array {
+  const out = new Float32Array(roles.length * 6);
   const color = new THREE.Color();
-  for (let i = 0; i < count; i++) color.set(colorOf(i)).toArray(out, i * 3);
+  roles.forEach((role, i) => {
+    color.set(palette[role]).toArray(out, i * 6);
+    color.toArray(out, i * 6 + 3);
+  });
   return out;
 }
 
@@ -155,22 +153,16 @@ export function Structure({
     useMemo(() => segmentPositions(run, frame), [run, frame]),
   );
   const segmentColors = useBufferAttribute(
-    useMemo(() => {
-      const roles = segmentRoles(run.topology);
-      return vertexColors(roles.length * 2, (i) => colors[roles[i >> 1]]);
-    }, [run, colorsKey]),
+    useMemo(() => roleColors(segmentRoles(run.topology), colors), [run, colorsKey]),
   );
 
   const points = useBufferAttribute(useMemo(() => pointPositions(frame), [frame]));
-  const pointColors = useBufferAttribute(
-    useMemo(() => {
-      const lit = new Set(
-        highlight ? pointGroups(run, highlight.block).get(highlight.name) : [],
-      );
-      return vertexColors(frame.x.length, (i) =>
-        lit.has(i) ? colors.highlight : colors.point,
-      );
-    }, [run, frame.x.length, highlight?.block, highlight?.name, colorsKey]),
+  const lit = useMemo(
+    () => (highlight ? pointGroups(run, highlight.block).get(highlight.name) ?? [] : []),
+    [run, highlight?.block, highlight?.name],
+  );
+  const litPoints = useBufferAttribute(
+    useMemo(() => pointPositions(frame, lit), [frame, lit]),
   );
 
   const anchors = useMemo(
@@ -201,9 +193,19 @@ export function Structure({
       >
         <bufferGeometry>
           <primitive attach="attributes-position" object={points} />
-          <primitive attach="attributes-color" object={pointColors} />
         </bufferGeometry>
-        <pointsMaterial vertexColors size={pointSize} sizeAttenuation />
+        <pointsMaterial color={colors.point} size={pointSize} sizeAttenuation />
+      </points>
+      <points key={litPoints.count} renderOrder={1}>
+        <bufferGeometry>
+          <primitive attach="attributes-position" object={litPoints} />
+        </bufferGeometry>
+        <pointsMaterial
+          color={colors.highlight}
+          size={pointSize * 2}
+          sizeAttenuation
+          depthTest={false}
+        />
       </points>
       {anchors.map((index) => (
         <mesh

@@ -7,15 +7,8 @@ import {
 } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
-import {
-  DEFAULT_PALETTE,
-  framing,
-  Structure,
-  type Palette,
-  type Pick,
-  type PointGroup,
-} from "./Structure";
-import { segmentRoles, type SegmentRole } from "./parts";
+import { DEFAULT_PALETTE, framing, Structure, type Palette, type Pick } from "./Structure";
+import { segmentRoles, type PointGroup, type SegmentRole } from "./parts";
 import { decodeRun, loadRun, type Run } from "./topology";
 
 export interface SymAWEViewerProps {
@@ -73,7 +66,13 @@ function nextGroup(pick: Pick, current: PointGroup | null): PointGroup | null {
   return pick.groups[(at + 1) % pick.groups.length] ?? null;
 }
 
-function Swatch({ color, glyph = "━━", label }: { color: string; glyph?: string; label: string }) {
+interface SwatchProps {
+  color: string;
+  glyph?: string;
+  label: string;
+}
+
+function Swatch({ color, glyph = "━━", label }: SwatchProps) {
   return (
     <p style={{ margin: 0 }}>
       <span style={{ color }}>{glyph}</span> {label}
@@ -218,7 +217,8 @@ export function SymAWEViewer({
             {run.topology.points.data.length} points
             · {run.topology.segments.data.length} segments
             · {run.topology.tethers.data.length} line runs
-            · {run.topology.tubes.data.length} tubes
+            {run.topology.tubes.data.length > 0 &&
+              ` · ${run.topology.tubes.data.length} tubes`}
           </p>
           <p style={{ margin: 0 }}>
             {run.frames.length} frame{run.frames.length === 1 ? "" : "s"} · sha{" "}
@@ -240,7 +240,7 @@ export function SymAWEViewer({
           <p style={{ margin: "0.6rem 0 0", color: colors.highlight }}>
             {highlight
               ? `${highlight.block === "bodies" ? "body" : "station"} ${highlight.name}`
-              : "click a point for its body, again for its station"}
+              : "click a point to highlight its body or station"}
           </p>
         </div>
       )}
