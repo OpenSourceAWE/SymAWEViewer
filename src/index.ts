@@ -4,8 +4,8 @@ export {
   Structure,
   framing,
   Z_UP_TO_Y_UP,
+  resolvePalette,
   type Palette,
-  type Pick,
   type StructureProps,
 } from "./Structure";
 export {
@@ -13,6 +13,7 @@ export {
   pointGroups,
   segmentRoles,
   type PointGroup,
+  type PointPick,
   type PointGroupBlock,
   type SegmentRole,
 } from "./parts";

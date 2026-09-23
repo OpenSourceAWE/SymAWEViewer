@@ -1,6 +1,13 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { bodyPositions, pointGroups, segmentRoles } from "../src/parts";
+import {
+  bodyPositions,
+  nextGroup,
+  pointGroups,
+  pointPick,
+  segmentRoles,
+  type PointGroup,
+} from "../src/parts";
 import { tubeMatrices } from "../src/Structure";
 import { columnValues, decodeRun } from "../src/topology";
 import type { NamePair, Vec3 } from "../src/generated/structure";
@@ -47,6 +54,29 @@ describe("pointGroups", () => {
     const flap = pointGroups(run, "stations").get("flap_1")!;
     expect(flap).toHaveLength(13);
     expect(flap.slice(0, 2).map((i) => names[i])).toEqual(["wing_le_1", "wing_te_1"]);
+  });
+});
+
+describe("picking a point", () => {
+  const run = decodeRun(runOf(example("v3_beam_structure")));
+  const index = columnValues<string>(run.topology.points, "name").indexOf("wing_te_7");
+  const pick = pointPick(run, index);
+  const body: PointGroup = { block: "bodies", name: "wing_te_body_7" };
+  const station: PointGroup = { block: "stations", name: "flap_7" };
+
+  it("names the point's body first, then its stations", () => {
+    expect(pick).toEqual({ point: "wing_te_7", groups: [body, station] });
+  });
+
+  it("steps from nothing to the body, through each station, and back", () => {
+    expect(nextGroup(pick, null)).toEqual(body);
+    expect(nextGroup(pick, body)).toEqual(station);
+    expect(nextGroup(pick, station)).toEqual(body);
+    expect(nextGroup(pick, { block: "stations", name: "flap_1" })).toEqual(body);
+  });
+
+  it("has nothing to highlight for a point in no group", () => {
+    expect(nextGroup({ point: "loose", groups: [] }, null)).toBeNull();
   });
 });
 

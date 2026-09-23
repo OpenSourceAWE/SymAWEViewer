@@ -72,6 +72,43 @@ export function pointGroups(run: Run, block: PointGroupBlock): Map<string, numbe
   return groups;
 }
 
+/** A clicked point, with the body and the stations it belongs to. */
+export interface PointPick {
+  point: string;
+  groups: PointGroup[];
+}
+
+/** The point at `index` with the groups it belongs to, its body first. */
+export function pointPick(run: Run, index: number): PointPick {
+  const body = columnValues<OptionalName>(run.topology.points, "body")[index];
+  const groups: PointGroup[] = body === null ? [] : [{ block: "bodies", name: body }];
+  for (const [name, members] of pointGroups(run, "stations")) {
+    if (members.includes(index)) groups.push({ block: "stations", name });
+  }
+  return { point: columnValues<string>(run.topology.points, "name")[index], groups };
+}
+
+/**
+ * The group after `current` among those of `pick`: its body, then each station, then
+ * its body again; the first of them when `current` is not one of them.
+ */
+export function nextGroup(
+  pick: PointPick,
+  current: PointGroup | null,
+): PointGroup | null {
+  const at = pick.groups.findIndex(
+    (group) => group.block === current?.block && group.name === current?.name,
+  );
+  return pick.groups[(at + 1) % pick.groups.length] ?? null;
+}
+
+/** Each body's name to its row in the `bodies` block. */
+export function bodyRows(run: Run): Map<string, number> {
+  return new Map(
+    columnValues<string>(run.topology.bodies, "name").map((name, i) => [name, i]),
+  )
+}
+
 /** The mean of `vectors`, or null when there are none. */
 function mean(vectors: Vec3[]): Vec3 | null {
   if (vectors.length === 0) return null;
@@ -102,7 +139,7 @@ export function bodyPositions(run: Run, frame: Frame): Float32Array {
     ),
   );
 
-  const row = new Map(names.map((name, i) => [name, i]));
+  const row = bodyRows(run);
   const neighbours: Vec3[][] = names.map(() => []);
   for (const [a, b] of columnValues<NamePair>(tubes, "bodies")) {
     const [i, j] = [row.get(a)!, row.get(b)!];

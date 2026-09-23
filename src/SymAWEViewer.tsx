@@ -7,8 +7,14 @@ import {
 } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
-import { DEFAULT_PALETTE, framing, Structure, type Palette, type Pick } from "./Structure";
-import { segmentRoles, type PointGroup, type SegmentRole } from "./parts";
+import { framing, resolvePalette, Structure, type Palette } from "./Structure";
+import {
+  nextGroup,
+  segmentRoles,
+  type PointGroup,
+  type PointPick,
+  type SegmentRole,
+} from "./parts";
 import { decodeRun, loadRun, type Run } from "./topology";
 
 export interface SymAWEViewerProps {
@@ -57,14 +63,6 @@ const ROLE_LABELS: Record<SegmentRole, string> = {
   pulley: "bridle over a pulley",
   bridle: "fixed bridle",
 };
-
-/** The group after `current` among those of `pick`: its body, then each station. */
-function nextGroup(pick: Pick, current: PointGroup | null): PointGroup | null {
-  const at = pick.groups.findIndex(
-    (group) => group.block === current?.block && group.name === current?.name,
-  );
-  return pick.groups[(at + 1) % pick.groups.length] ?? null;
-}
 
 interface SwatchProps {
   color: string;
@@ -173,8 +171,11 @@ export function SymAWEViewer({
   const pose = run.frames[Math.min(frame, run.frames.length - 1)];
   const { centre, span } = framing(pose);
   const meta = run.topology.metadata;
-  const colors = { ...DEFAULT_PALETTE, ...palette };
+  const colors = resolvePalette(palette);
   const roles = new Set(segmentRoles(run.topology));
+  const tubeCount = run.topology.tubes.data.length;
+  const pickNext = (pick: PointPick) =>
+    setHighlight((current) => nextGroup(pick, current));
 
   return (
     <div ref={box} className={className} style={{ ...fill, ...style }}>
@@ -195,7 +196,7 @@ export function SymAWEViewer({
           frame={pose}
           palette={palette}
           highlight={highlight}
-          onPick={(pick) => setHighlight((current) => nextGroup(pick, current))}
+          onPick={pickNext}
         />
         <Grid
           args={[span * 4, span * 4]}
@@ -217,8 +218,6 @@ export function SymAWEViewer({
             {run.topology.points.data.length} points
             · {run.topology.segments.data.length} segments
             · {run.topology.tethers.data.length} line runs
-            {run.topology.tubes.data.length > 0 &&
-              ` · ${run.topology.tubes.data.length} tubes`}
           </p>
           <p style={{ margin: 0 }}>
             {run.frames.length} frame{run.frames.length === 1 ? "" : "s"} · sha{" "}
@@ -230,8 +229,8 @@ export function SymAWEViewer({
               .map((role) => (
                 <Swatch key={role} color={colors[role]} label={ROLE_LABELS[role]} />
               ))}
-            {run.topology.tubes.data.length > 0 && (
-              <Swatch color={colors.tube} label="tube between bodies" />
+            {tubeCount > 0 && (
+              <Swatch color={colors.tube} label={`${tubeCount} tubes between bodies`} />
             )}
             {run.topology.winches.data.length > 0 && (
               <Swatch color={colors.anchor} glyph="▲" label="winch, the ground anchor" />

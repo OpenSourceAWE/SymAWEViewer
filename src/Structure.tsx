@@ -1,11 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { useThree } from "@react-three/fiber";
+import { useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   bodyPositions,
+  bodyRows,
   pointGroups,
+  pointPick,
   segmentRoles,
   type PointGroup,
+  type PointPick,
   type SegmentRole,
 } from "./parts";
 import {
@@ -16,7 +19,7 @@ import {
   type Frame,
   type Run,
 } from "./topology";
-import type { NamePair, OptionalName } from "./generated/structure";
+import type { NamePair } from "./generated/structure";
 
 /** The simulation frame is z-up; three.js is y-up. */
 export const Z_UP_TO_Y_UP: [number, number, number] = [-Math.PI / 2, 0, 0];
@@ -41,10 +44,9 @@ export const DEFAULT_PALETTE: Palette = {
   highlight: "#ff4fa3",
 };
 
-/** A clicked point, with the body and the stations it belongs to. */
-export interface Pick {
-  point: string;
-  groups: PointGroup[];
+/** `palette` over `DEFAULT_PALETTE`. */
+export function resolvePalette(palette?: Partial<Palette>): Palette {
+  return { ...DEFAULT_PALETTE, ...palette };
 }
 
 export interface StructureProps {
@@ -54,7 +56,7 @@ export interface StructureProps {
   pointSize?: number;
   /** The group whose points are drawn in the highlight color. */
   highlight?: PointGroup | null;
-  onPick?: (pick: Pick) => void;
+  onPick?: (pick: PointPick) => void;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -64,9 +66,9 @@ const UP = new THREE.Vector3(0, 1, 0);
  * its two bodies at the tube's `diameter`, in the simulation frame.
  */
 export function tubeMatrices(run: Run, frame: Frame): THREE.Matrix4[] {
-  const { bodies, tubes } = run.topology;
+  const { tubes } = run.topology;
   const placed = bodyPositions(run, frame);
-  const row = new Map(columnValues<string>(bodies, "name").map((name, i) => [name, i]));
+  const row = bodyRows(run);
   const diameters = columnValues<number>(tubes, "diameter");
   return columnValues<NamePair>(tubes, "bodies").map(([a, b], i) => {
     const start = new THREE.Vector3().fromArray(placed, row.get(a)! * 3);
@@ -80,18 +82,11 @@ export function tubeMatrices(run: Run, frame: Frame): THREE.Matrix4[] {
   });
 }
 
-/** The point at `index` with the groups it belongs to, its body first. */
-function pickOf(run: Run, index: number): Pick {
-  const body = columnValues<OptionalName>(run.topology.points, "body")[index];
-  const groups: PointGroup[] = body === null ? [] : [{ block: "bodies", name: body }];
-  for (const [name, members] of pointGroups(run, "stations")) {
-    if (members.includes(index)) groups.push({ block: "stations", name });
-  }
-  return { point: columnValues<string>(run.topology.points, "name")[index], groups };
-}
-
 /** Flat `[r, g, b, ...]` for each segment's two ends, in its role's color. */
-function roleColors(roles: SegmentRole[], palette: Palette): Float32Array {
+function roleColors(
+  roles: SegmentRole[],
+  palette: Record<SegmentRole, string>,
+): Float32Array {
   const out = new Float32Array(roles.length * 6);
   const color = new THREE.Color();
   roles.forEach((role, i) => {
@@ -146,14 +141,18 @@ export function Structure({
     raycaster.params.Points.threshold = pointSize / 2;
   }, [raycaster, pointSize]);
 
-  const colors = { ...DEFAULT_PALETTE, ...palette };
-  const colorsKey = Object.values(colors).join();
+  const colors = resolvePalette(palette);
+  const { power, tether, pulley, bridle } = colors;
 
   const segments = useBufferAttribute(
     useMemo(() => segmentPositions(run, frame), [run, frame]),
   );
+  const roles = useMemo(() => segmentRoles(run.topology), [run]);
   const segmentColors = useBufferAttribute(
-    useMemo(() => roleColors(segmentRoles(run.topology), colors), [run, colorsKey]),
+    useMemo(
+      () => roleColors(roles, { power, tether, pulley, bridle }),
+      [roles, power, tether, pulley, bridle],
+    ),
   );
 
   const points = useBufferAttribute(useMemo(() => pointPositions(frame), [frame]));
@@ -174,6 +173,12 @@ export function Structure({
   );
   const anchorHeight = framing(frame).span / 40;
 
+  function pickPoint(event: ThreeEvent<MouseEvent>) {
+    if (!onPick || event.index === undefined) return;
+    event.stopPropagation();
+    onPick(pointPick(run, event.index));
+  }
+
   return (
     <group rotation={Z_UP_TO_Y_UP}>
       <lineSegments>
@@ -184,13 +189,7 @@ export function Structure({
         <lineBasicMaterial vertexColors />
       </lineSegments>
       <Tubes run={run} frame={frame} color={colors.tube} />
-      <points
-        onClick={(event) => {
-          if (!onPick || event.index === undefined) return;
-          event.stopPropagation();
-          onPick(pickOf(run, event.index));
-        }}
-      >
+      <points onClick={pickPoint}>
         <bufferGeometry>
           <primitive attach="attributes-position" object={points} />
         </bufferGeometry>
