@@ -112,6 +112,7 @@ function connectivitySection(
   nodes: TopologyTable,
   pairs: TopologyTable,
   pairColumn: string,
+  label: string,
 ) {
   const rowNumber = new Map(
     columnValues<string>(nodes, "name").map((name, i) => [name, i + 1]),
@@ -120,18 +121,22 @@ function connectivitySection(
   for (const pair of columnValues<[string, string]>(pairs, pairColumn)) {
     const [a, b] = pair.map((name) => rowNumber.get(name));
     if (a === undefined || b === undefined) {
-      throw new Error(`"${pairColumn}" names an unknown row in [${pair.join(", ")}]`);
+      throw new Error(`${label} names an unknown row in [${pair.join(", ")}]`);
     }
     section += `${a},${b};`;
   }
   return section;
 }
 
-/** The `connectivity_sha` `structure_schema.yml` defines, computed from the blocks. */
-export function connectivitySha(topology: Topology): string {
+/**
+ * The `connectivity_sha` `structure_schema.yml` defines, computed from the blocks.
+ * `source` only labels error messages.
+ */
+export function connectivitySha(topology: Topology, source = "topology"): string {
+  const { points, segments, bodies, tubes } = topology;
   const preimage =
-    connectivitySection(topology.points, topology.segments, "points") +
-    connectivitySection(topology.bodies, topology.tubes, "bodies");
+    connectivitySection(points, segments, "points", `${source} segments`) +
+    connectivitySection(bodies, tubes, "bodies", `${source} tubes`);
   return bytesToHex(sha256(utf8ToBytes(preimage)));
 }
 
@@ -163,9 +168,9 @@ export function decodeRun(
   }
 
   const document = JSON.parse(raw) as StructureDocument;
-  checkVersion(document.metadata.awesIO_version, source);
   const topology = readBlocks(document, source);
-  const sha = connectivitySha(topology);
+  checkVersion(topology.metadata.awesIO_version, source);
+  const sha = connectivitySha(topology, source);
   if (sha !== topology.metadata.connectivity_sha) {
     throw new Error(
       `${source} declares connectivity_sha ${topology.metadata.connectivity_sha} ` +

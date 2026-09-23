@@ -179,7 +179,8 @@ export function SymAWEViewer({
           <p style={{ color: "#d7dae1", margin: 0 }}>{meta.name}</p>
           <p style={{ margin: 0 }}>{meta.note}</p>
           <p style={{ margin: "0.6rem 0 0" }}>
-            {meta.n_points} points · {run.topology.segments.data.length} segments
+            {run.topology.points.data.length} points
+            · {run.topology.segments.data.length} segments
             · {run.topology.tethers.data.length} line runs
           </p>
           <p style={{ margin: 0 }}>

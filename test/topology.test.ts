@@ -11,6 +11,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import {
+  column,
   columnValues,
   connectivitySha,
   decodeRun,
@@ -30,9 +31,14 @@ function example(name: string): StructureDocument {
   return parse(new TextDecoder().decode(fixture(`${name}.yml`)));
 }
 
-/** An uncompressed run of one frame holding `document` at its written positions. */
-function runOf(document: StructureDocument): Uint8Array {
-  const positions = columnValues<Vec3>(document.points, "pos_ENU");
+/**
+ * An uncompressed run of one frame holding `document` at its written positions,
+ * or at `positions` when given.
+ */
+function runOf(
+  document: StructureDocument,
+  positions = columnValues<Vec3>(document.points, "pos_ENU"),
+): Uint8Array {
   const axis = (i: number) =>
     vectorFromArray(
       [positions.map((position) => position[i])],
@@ -101,6 +107,31 @@ describe("decodeRun", () => {
     delete document.segments;
     expect(() => decodeRun(runOf(document as StructureDocument))).toThrow(
       /missing required block "segments"/,
+    );
+  });
+
+  it("refuses a document missing its metadata block", () => {
+    const document: Partial<StructureDocument> = example("v3_psm_structure");
+    delete document.metadata;
+    expect(() => decodeRun(runOf(document as StructureDocument))).toThrow(
+      /missing required block "metadata"/,
+    );
+  });
+
+  it("names the file and block of a segment joining an unknown point", () => {
+    const document = example("v3_psm_structure");
+    const endpoints = column(document.segments, "points");
+    (document.segments.data![0] as unknown[])[endpoints] = ["nowhere", "nowhere"];
+    expect(() => decodeRun(runOf(document), "psm.arrow")).toThrow(
+      /psm\.arrow segments names an unknown row in \[nowhere, nowhere\]/,
+    );
+  });
+
+  it("refuses frames that do not carry one position per point", () => {
+    const document = example("v3_psm_structure");
+    const positions = columnValues<Vec3>(document.points, "pos_ENU").slice(1);
+    expect(() => decodeRun(runOf(document, positions), "psm.arrow")).toThrow(
+      /psm\.arrow frames carry \d+ positions but its topology has \d+ points/,
     );
   });
 
