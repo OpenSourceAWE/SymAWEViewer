@@ -6,15 +6,17 @@ export {
   type StructureProps,
 } from "./Structure";
 export {
+  AWESIO_VERSION,
   column,
   columnValues,
+  connectivitySha,
   decodeRun,
   loadRun,
   pointPositions,
   segmentPositions,
-  SUPPORTED_SCHEMA,
   type Frame,
   type Run,
+  type StructureDocument,
   type Topology,
   type TopologyMetadata,
   type TopologyTable,
