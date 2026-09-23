@@ -221,6 +221,15 @@ export async function loadRun(url: string, init?: RequestInit): Promise<Run> {
   return decodeRun(await response.arrayBuffer(), url);
 }
 
+/** The index of point `name` into every frame, throwing where `referrer` names none. */
+export function pointIndexOf(run: Run, name: string, referrer: string): number {
+  const index = run.pointIndex.get(name);
+  if (index === undefined) {
+    throw new Error(`${referrer} references unknown point "${name}"`);
+  }
+  return index;
+}
+
 /**
  * Flat `[x, y, z, ...]` line-segment endpoints for every structural segment,
  * ready for a `LineSegments` buffer.
@@ -234,10 +243,7 @@ export function segmentPositions(run: Run, frame: Frame): Float32Array {
 
   endpoints.forEach((pair, i) => {
     pair.forEach((name, end) => {
-      const index = run.pointIndex.get(name);
-      if (index === undefined) {
-        throw new Error(`segment references unknown point "${name}"`);
-      }
+      const index = pointIndexOf(run, name, "segment");
       out[i * 6 + end * 3] = frame.x[index];
       out[i * 6 + end * 3 + 1] = frame.y[index];
       out[i * 6 + end * 3 + 2] = frame.z[index];

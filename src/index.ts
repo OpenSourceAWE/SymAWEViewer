@@ -1,10 +1,21 @@
 export { SymAWEViewer, type SymAWEViewerProps } from "./SymAWEViewer";
 export {
+  DEFAULT_PALETTE,
   Structure,
   framing,
   Z_UP_TO_Y_UP,
+  type Palette,
+  type Pick,
+  type PointGroup,
   type StructureProps,
 } from "./Structure";
+export {
+  bodyPositions,
+  pointGroups,
+  segmentRoles,
+  type PointGroupBlock,
+  type SegmentRole,
+} from "./parts";
 export {
   AWESIO_VERSION,
   column,
