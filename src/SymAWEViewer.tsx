@@ -7,7 +7,14 @@ import {
 } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
-import { framing, Structure } from "./Structure";
+import { framing, resolvePalette, Structure, type Palette } from "./Structure";
+import {
+  nextGroup,
+  segmentRoles,
+  type PointGroup,
+  type PointPick,
+  type SegmentRole,
+} from "./parts";
 import { decodeRun, loadRun, type Run } from "./topology";
 
 export interface SymAWEViewerProps {
@@ -20,9 +27,8 @@ export interface SymAWEViewerProps {
   /** Index into the run's frames. */
   frame?: number;
   background?: string;
-  segmentColor?: string;
-  pointColor?: string;
-  /** Name, counts and connectivity hash, drawn over the top-left corner. */
+  palette?: Partial<Palette>;
+  /** Name, counts, connectivity hash and a legend, drawn over the top-left corner. */
   showOverlay?: boolean;
   className?: string;
   style?: CSSProperties;
@@ -51,6 +57,27 @@ const overlayStyle: CSSProperties = {
   font: "12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace",
 };
 
+const ROLE_LABELS: Record<SegmentRole, string> = {
+  power: "tether, reeled by a winch",
+  tether: "tether",
+  pulley: "bridle over a pulley",
+  bridle: "fixed bridle",
+};
+
+interface SwatchProps {
+  color: string;
+  glyph?: string;
+  label: string;
+}
+
+function Swatch({ color, glyph = "━━", label }: SwatchProps) {
+  return (
+    <p style={{ margin: 0 }}>
+      <span style={{ color }}>{glyph}</span> {label}
+    </p>
+  );
+}
+
 /**
  * Drop-in run viewer: give it a `src` or `data` and size its parent. It brings
  * its own canvas, camera framing and styling, and depends on no CSS framework.
@@ -61,8 +88,7 @@ export function SymAWEViewer({
   fetchOptions,
   frame = 0,
   background = "#07070b",
-  segmentColor,
-  pointColor,
+  palette,
   showOverlay = true,
   className,
   style,
@@ -72,6 +98,7 @@ export function SymAWEViewer({
 }: SymAWEViewerProps) {
   const [run, setRun] = useState<Run | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [highlight, setHighlight] = useState<PointGroup | null>(null);
 
   const latest = useRef({ fetchOptions, onLoad, onError });
   latest.current = { fetchOptions, onLoad, onError };
@@ -103,6 +130,7 @@ export function SymAWEViewer({
 
     setRun(null);
     setError(null);
+    setHighlight(null);
 
     if (data) {
       try {
@@ -143,6 +171,11 @@ export function SymAWEViewer({
   const pose = run.frames[Math.min(frame, run.frames.length - 1)];
   const { centre, span } = framing(pose);
   const meta = run.topology.metadata;
+  const colors = resolvePalette(palette);
+  const roles = new Set(segmentRoles(run.topology));
+  const tubeCount = run.topology.tubes.data.length;
+  const pickNext = (pick: PointPick) =>
+    setHighlight((current) => nextGroup(pick, current));
 
   return (
     <div ref={box} className={className} style={{ ...fill, ...style }}>
@@ -153,14 +186,17 @@ export function SymAWEViewer({
           near: 0.1,
           far: span * 40,
         }}
+        onPointerMissed={() => setHighlight(null)}
       >
         <color attach="background" args={[background]} />
-        <ambientLight intensity={1.2} />
+        <ambientLight intensity={0.9} />
+        <directionalLight position={[1, 2, 1]} intensity={1.5} />
         <Structure
           run={run}
           frame={pose}
-          segmentColor={segmentColor}
-          pointColor={pointColor}
+          palette={palette}
+          highlight={highlight}
+          onPick={pickNext}
         />
         <Grid
           args={[span * 4, span * 4]}
@@ -186,6 +222,24 @@ export function SymAWEViewer({
           <p style={{ margin: 0 }}>
             {run.frames.length} frame{run.frames.length === 1 ? "" : "s"} · sha{" "}
             {meta.connectivity_sha.slice(0, 12)}
+          </p>
+          <div style={{ margin: "0.6rem 0 0" }}>
+            {(Object.keys(ROLE_LABELS) as SegmentRole[])
+              .filter((role) => roles.has(role))
+              .map((role) => (
+                <Swatch key={role} color={colors[role]} label={ROLE_LABELS[role]} />
+              ))}
+            {tubeCount > 0 && (
+              <Swatch color={colors.tube} label={`${tubeCount} tubes between bodies`} />
+            )}
+            {run.topology.winches.data.length > 0 && (
+              <Swatch color={colors.anchor} glyph="▲" label="winch, the ground anchor" />
+            )}
+          </div>
+          <p style={{ margin: "0.6rem 0 0", color: colors.highlight }}>
+            {highlight
+              ? `${highlight.block === "bodies" ? "body" : "station"} ${highlight.name}`
+              : "click a point to highlight its body or station"}
           </p>
         </div>
       )}

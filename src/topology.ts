@@ -221,6 +221,15 @@ export async function loadRun(url: string, init?: RequestInit): Promise<Run> {
   return decodeRun(await response.arrayBuffer(), url);
 }
 
+/** The index of point `name` into every frame, throwing where `referrer` names none. */
+export function pointIndexOf(run: Run, name: string, referrer: string): number {
+  const index = run.pointIndex.get(name);
+  if (index === undefined) {
+    throw new Error(`${referrer} references unknown point "${name}"`);
+  }
+  return index;
+}
+
 /**
  * Flat `[x, y, z, ...]` line-segment endpoints for every structural segment,
  * ready for a `LineSegments` buffer.
@@ -234,10 +243,7 @@ export function segmentPositions(run: Run, frame: Frame): Float32Array {
 
   endpoints.forEach((pair, i) => {
     pair.forEach((name, end) => {
-      const index = run.pointIndex.get(name);
-      if (index === undefined) {
-        throw new Error(`segment references unknown point "${name}"`);
-      }
+      const index = pointIndexOf(run, name, "segment");
       out[i * 6 + end * 3] = frame.x[index];
       out[i * 6 + end * 3 + 1] = frame.y[index];
       out[i * 6 + end * 3 + 2] = frame.z[index];
@@ -247,13 +253,15 @@ export function segmentPositions(run: Run, frame: Frame): Float32Array {
   return out;
 }
 
-/** Flat `[x, y, z, ...]` positions for every point in `frame`. */
-export function pointPositions(frame: Frame): Float32Array {
-  const out = new Float32Array(frame.x.length * 3);
-  for (let i = 0; i < frame.x.length; i++) {
-    out[i * 3] = frame.x[i];
-    out[i * 3 + 1] = frame.y[i];
-    out[i * 3 + 2] = frame.z[i];
+/** Flat `[x, y, z, ...]` positions in `frame` of the points at `indices`, or of all. */
+export function pointPositions(frame: Frame, indices?: number[]): Float32Array {
+  const count = indices?.length ?? frame.x.length;
+  const out = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const point = indices ? indices[i] : i;
+    out[i * 3] = frame.x[point];
+    out[i * 3 + 1] = frame.y[point];
+    out[i * 3 + 2] = frame.z[point];
   }
   return out;
 }
