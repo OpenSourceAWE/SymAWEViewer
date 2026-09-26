@@ -1,8 +1,8 @@
 # @symawe/viewer
 
 > **Work in progress.** Early and unstable. The component API, the run format
-> and the package name all change without notice, and there are no tests yet.
-> Not on npm — pin a git tag if you depend on it.
+> and the package name all change without notice. Not on npm — pin a git tag
+> if you depend on it.
 
 Browser viewer for SymbolicAWEModels runs. Reads the `.arrow` files SymAWE
 exports: frame columns plus an awesIO structure topology carried in the schema
@@ -44,17 +44,28 @@ check silently fails. Hosts should `resolve.dedupe` all five.
 
 ## Run format
 
-A run is one Arrow IPC file, uncompressed — arrow-js does not implement IPC body
-decompression, so `compress=:lz4` files will not load in a browser.
+A run is one Arrow IPC file, uncompressed. `decodeRun` refuses a compressed one
+by name: arrow-js decodes only codecs the host registers, and this viewer
+registers none.
 
-- Schema metadata key `topology` holds the structure as JSON, in the
-  `headers`/`data` table dialect, referencing points by name.
+- Schema metadata key `topology` holds an awesIO structure document as JSON:
+  `headers`/`data` blocks referencing each other by name.
 - Columns `X`, `Y`, `Z` hold one world-frame position list per row, one row per
-  frame.
+  frame, one position per row of the `points` block.
 
-`decodeRun` refuses a file whose declared `n_points` disagrees with the frame
-arrays or the points block. That is the check that catches a log replayed
-against a structure it was not recorded with.
+The document is read against `schema/structure_schema.yml`, vendored from
+1-Bart-1/awesIO@2568e27; `pnpm generate` writes its TypeScript types to
+`src/generated/`. `decodeRun` refuses an unknown major `awesIO_version` and
+warns on an unknown minor, reads an absent optional block as an empty one, and
+refuses a document whose `connectivity_sha` its own blocks do not hash to.
+
+## Development
+
+```sh
+pnpm install
+pnpm test        # generates the types, then runs vitest
+pnpm typecheck
+```
 
 ## Versioning
 

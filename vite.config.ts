@@ -23,6 +23,7 @@ export default defineConfig({
         "@react-three/fiber",
         "@react-three/drei",
         "apache-arrow",
+        /^@noble\/hashes/,
       ],
     },
   },
