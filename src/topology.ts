@@ -34,7 +34,7 @@ export interface Run {
 }
 
 /** The `awesIO_version` of the vendored `structure_schema.yml`. */
-export const AWESIO_VERSION = "1.0.0";
+export const AWESIO_VERSION = "0.1.0";
 
 const ARROW_FILE_MAGIC = "ARROW1";
 
@@ -54,6 +54,14 @@ export function column(table: TopologyTable, name: string): number {
 export function columnValues<T>(table: TopologyTable, name: string): T[] {
   const index = column(table, name);
   return table.data.map((row) => row[index] as T);
+}
+
+/** Values of optional column `name` for every row of `table`; undefined without it. */
+export function optionalColumnValues<T>(
+  table: TopologyTable,
+  name: string,
+): T[] | undefined {
+  return table.headers.includes(name) ? columnValues<T>(table, name) : undefined;
 }
 
 /** The compression of the first record batch in Arrow IPC `bytes`, or null. */
@@ -78,8 +86,8 @@ function checkVersion(version: string, source: string) {
   const [knownMajor, knownMinor] = AWESIO_VERSION.split(".").map(Number);
   if (major !== knownMajor) {
     throw new Error(
-      `${source} is written against awesIO ${version}; ` +
-        `this viewer reads awesIO ${knownMajor}.x only`,
+      `${source} is written against awesIO ${version}; this viewer reads the ` +
+        `awesIO ${AWESIO_VERSION} schema, and so awesIO ${knownMajor}.x only`,
     );
   }
   if (minor > knownMinor) {
@@ -98,32 +106,33 @@ function readBlocks(document: StructureDocument, source: string): Topology {
     }
   }
   const topology: Record<string, unknown> = { ...document };
-  for (const [name, columns] of Object.entries(BLOCK_COLUMNS)) {
-    topology[name] ??= { headers: [...columns], data: [] };
+  for (const [name, { headers, units }] of Object.entries(BLOCK_COLUMNS)) {
+    topology[name] ??= { headers: [...headers], units: [...units], data: [] };
   }
   return topology as Topology;
 }
 
 /**
- * The part of the connectivity preimage for one pair of blocks: the number of rows
- * of `nodes`, then the one-based row numbers each `pairs` row joins in `pairColumn`.
+ * One section of the connectivity preimage: `count`, then the one-based rows of
+ * `nodes` each `elements` row joins in `joinColumn`.
  */
 function connectivitySection(
+  count: number,
   nodes: TopologyTable,
-  pairs: TopologyTable,
-  pairColumn: string,
+  elements: TopologyTable,
+  joinColumn: string,
   label: string,
 ) {
   const rowNumber = new Map(
     columnValues<string>(nodes, "name").map((name, i) => [name, i + 1]),
   );
-  let section = `${nodes.data.length};`;
-  for (const pair of columnValues<[string, string]>(pairs, pairColumn)) {
-    const [a, b] = pair.map((name) => rowNumber.get(name));
-    if (a === undefined || b === undefined) {
-      throw new Error(`${label} names an unknown row in [${pair.join(", ")}]`);
+  let section = `${count};`;
+  for (const joined of columnValues<string[]>(elements, joinColumn)) {
+    const rows = joined.map((name) => rowNumber.get(name));
+    if (rows.includes(undefined)) {
+      throw new Error(`${label} names an unknown row in [${joined.join(", ")}]`);
     }
-    section += `${a},${b};`;
+    section += `${rows.join(",")};`;
   }
   return section;
 }
@@ -133,10 +142,12 @@ function connectivitySection(
  * `source` only labels error messages.
  */
 export function connectivitySha(topology: Topology, source = "topology"): string {
-  const { points, segments, bodies, tubes } = topology;
+  const { points, segments, bodies, tubes, canopy_faces: faces } = topology;
+  const label = (block: string) => `${source} ${block}`;
   const preimage =
-    connectivitySection(points, segments, "points", `${source} segments`) +
-    connectivitySection(bodies, tubes, "bodies", `${source} tubes`);
+    connectivitySection(points.data.length, points, segments, "points", label("segments")) +
+    connectivitySection(bodies.data.length, bodies, tubes, "bodies", label("tubes")) +
+    connectivitySection(faces.data.length, points, faces, "points", label("canopy_faces"));
   return bytesToHex(sha256(utf8ToBytes(preimage)));
 }
 
@@ -251,6 +262,20 @@ export function segmentPositions(run: Run, frame: Frame): Float32Array {
   });
 
   return out;
+}
+
+/**
+ * Flat `[x, y, z, ...]` triangle corners for every canopy face, a quadrilateral split
+ * along its first diagonal, ready for a mesh's position buffer.
+ */
+export function canopyPositions(run: Run, frame: Frame): Float32Array {
+  const triangles = columnValues<string[]>(run.topology.canopy_faces, "points").flatMap(
+    (corners) => {
+      const [a, b, c, d] = corners.map((name) => pointIndexOf(run, name, "canopy face"));
+      return d === undefined ? [a, b, c] : [a, b, c, a, c, d];
+    },
+  );
+  return pointPositions(frame, triangles);
 }
 
 /** Flat `[x, y, z, ...]` positions in `frame` of the points at `indices`, or of all. */

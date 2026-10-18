@@ -5,10 +5,11 @@ import { parse } from "yaml";
 const SCHEMA = "schema/structure_schema.yml";
 const OUT_DIR = new URL("../src/generated/", import.meta.url);
 
-/** The leading columns a table block requires, as the schema lists them. */
+/** The leading headers and units a table block requires, as the schema lists them. */
 function requiredColumns(block) {
-  const headers = block.allOf.find((part) => part.properties?.headers);
-  return headers.properties.headers.items.map((item) => item.const);
+  const { properties } = block.allOf.find((part) => part.properties?.headers);
+  const consts = (row) => properties[row].items.map((item) => item.const);
+  return { headers: consts("headers"), units: consts("units") };
 }
 
 const schema = parse(readFileSync(new URL(`../${SCHEMA}`, import.meta.url), "utf8"));
@@ -29,7 +30,7 @@ writeFileSync(
 /** The blocks a structure document must carry. */
 export const REQUIRED_BLOCKS = ${JSON.stringify(schema.required)} as const;
 
-/** Every block the schema defines, with the columns it requires, in order. */
+/** Every block the schema defines, with the headers and units it requires, in order. */
 export const BLOCK_COLUMNS = ${JSON.stringify(columns, null, 2)} as const;
 `,
 );

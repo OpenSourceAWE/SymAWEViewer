@@ -8,7 +8,12 @@ import {
   vectorFromArray,
 } from "apache-arrow";
 import { parse } from "yaml";
-import { columnValues, type StructureDocument } from "../src/topology";
+import {
+  column,
+  columnValues,
+  type StructureDocument,
+  type TopologyTable,
+} from "../src/topology";
 import type { Vec3 } from "../src/generated/structure";
 
 export const EXAMPLES = ["v3_psm_structure", "v3_beam_structure"];
@@ -37,4 +42,10 @@ export function runOf(
   const table = new Table({ X: axis(0), Y: axis(1), Z: axis(2) });
   table.schema.metadata.set("topology", JSON.stringify(document));
   return tableToIPC(table, "file");
+}
+
+/** `table` with column `name` taken out of its headers, its units and every row. */
+export function withoutColumn(table: TopologyTable, name: string) {
+  const index = column(table, name);
+  for (const row of [table.headers, table.units, ...table.data]) row.splice(index, 1);
 }

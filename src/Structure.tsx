@@ -2,24 +2,23 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import {
-  bodyPositions,
-  bodyRows,
+  anchorPoints,
   pointGroups,
   pointPick,
   segmentRoles,
+  tubeEnds,
   type PointGroup,
   type PointPick,
   type SegmentRole,
 } from "./parts";
 import {
-  columnValues,
-  pointIndexOf,
+  canopyPositions,
+  optionalColumnValues,
   pointPositions,
   segmentPositions,
   type Frame,
   type Run,
 } from "./topology";
-import type { NamePair } from "./generated/structure";
 
 /** The simulation frame is z-up; three.js is y-up. */
 export const Z_UP_TO_Y_UP: [number, number, number] = [-Math.PI / 2, 0, 0];
@@ -27,6 +26,7 @@ export const Z_UP_TO_Y_UP: [number, number, number] = [-Math.PI / 2, 0, 0];
 /** Colors of each part the structure is drawn in. */
 export interface Palette extends Record<SegmentRole, string> {
   tube: string;
+  canopy: string;
   point: string;
   anchor: string;
   highlight: string;
@@ -39,6 +39,7 @@ export const DEFAULT_PALETTE: Palette = {
   pulley: "#4fd1c5",
   bridle: "#6f7f9e",
   tube: "#c9d3e6",
+  canopy: "#7f9cd9",
   point: "#9aa6bf",
   anchor: "#ff7a45",
   highlight: "#ff4fa3",
@@ -63,21 +64,21 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 /**
  * One matrix per tube placing a unit cylinder, of unit diameter along +y, between
- * its two bodies at the tube's `diameter`, in the simulation frame.
+ * its two bodies at the tube's `diameter`, in the simulation frame. None where the
+ * tubes carry no `diameter`.
  */
 export function tubeMatrices(run: Run, frame: Frame): THREE.Matrix4[] {
-  const { tubes } = run.topology;
-  const placed = bodyPositions(run, frame);
-  const row = bodyRows(run);
-  const diameters = columnValues<number>(tubes, "diameter");
-  return columnValues<NamePair>(tubes, "bodies").map(([a, b], i) => {
-    const start = new THREE.Vector3().fromArray(placed, row.get(a)! * 3);
-    const end = new THREE.Vector3().fromArray(placed, row.get(b)! * 3);
+  const diameters = optionalColumnValues<number>(run.topology.tubes, "diameter");
+  if (!diameters) return [];
+  const ends = tubeEnds(run, frame);
+  return diameters.map((diameter, i) => {
+    const start = new THREE.Vector3().fromArray(ends, i * 6);
+    const end = new THREE.Vector3().fromArray(ends, i * 6 + 3);
     const axis = end.clone().sub(start);
     return new THREE.Matrix4().compose(
       start.add(end).multiplyScalar(0.5),
       new THREE.Quaternion().setFromUnitVectors(UP, axis.clone().normalize()),
-      new THREE.Vector3(diameters[i], axis.length(), diameters[i]),
+      new THREE.Vector3(diameter, axis.length(), diameter),
     );
   });
 }
@@ -100,6 +101,7 @@ function useBufferAttribute(values: Float32Array) {
   return useMemo(() => new THREE.BufferAttribute(values, 3), [values]);
 }
 
+/** Tubes as cylinders at their diameter, or as lines where they carry none. */
 function Tubes({ run, frame, color }: { run: Run; frame: Frame; color: string }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const matrices = useMemo(() => tubeMatrices(run, frame), [run, frame]);
@@ -109,8 +111,18 @@ function Tubes({ run, frame, color }: { run: Run; frame: Frame; color: string })
     mesh.current.instanceMatrix.needsUpdate = true;
     mesh.current.computeBoundingSphere();
   }, [matrices]);
+  const axes = useBufferAttribute(useMemo(() => tubeEnds(run, frame), [run, frame]));
 
-  if (matrices.length === 0) return null;
+  if (matrices.length === 0) {
+    return (
+      <lineSegments>
+        <bufferGeometry>
+          <primitive attach="attributes-position" object={axes} />
+        </bufferGeometry>
+        <lineBasicMaterial color={color} />
+      </lineSegments>
+    );
+  }
   return (
     <instancedMesh
       key={matrices.length}
@@ -125,7 +137,7 @@ function Tubes({ run, frame, color }: { run: Run; frame: Frame; color: string })
 
 /**
  * The structure, already rotated into three.js axes: segments colored by role,
- * tubes as cylinders at their diameter, points, and a cone on each winch point.
+ * tubes, the canopy faces, points, and a cone on each fixed point.
  * Render it inside your own `Canvas` when you want custom chrome.
  */
 export function Structure({
@@ -164,13 +176,10 @@ export function Structure({
     useMemo(() => pointPositions(frame, lit), [frame, lit]),
   );
 
-  const anchors = useMemo(
-    () =>
-      columnValues<string>(run.topology.winches, "winch_point").map((name) =>
-        pointIndexOf(run, name, "winch"),
-      ),
-    [run],
+  const canopy = useBufferAttribute(
+    useMemo(() => canopyPositions(run, frame), [run, frame]),
   );
+  const anchors = useMemo(() => anchorPoints(run.topology), [run]);
   const anchorHeight = framing(frame).span / 40;
 
   function pickPoint(event: ThreeEvent<MouseEvent>) {
@@ -189,6 +198,18 @@ export function Structure({
         <lineBasicMaterial vertexColors />
       </lineSegments>
       <Tubes run={run} frame={frame} color={colors.tube} />
+      <mesh key={canopy.count}>
+        <bufferGeometry>
+          <primitive attach="attributes-position" object={canopy} />
+        </bufferGeometry>
+        <meshBasicMaterial
+          color={colors.canopy}
+          side={THREE.DoubleSide}
+          transparent
+          opacity={0.35}
+          depthWrite={false}
+        />
+      </mesh>
       <points onClick={pickPoint}>
         <bufferGeometry>
           <primitive attach="attributes-position" object={points} />

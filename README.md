@@ -37,12 +37,14 @@ names:
 - **Segments by role.** A segment of a tether some winch reels is the power
   path; of a tether no winch reels, a tether; one of the pair a pulley trades
   length between, a pulley line; anything else, fixed bridle.
-- **Tubes** as cylinders at their `diameter`, between their two bodies. Frames
-  carry points only, so a body moves with the mean displacement of the points
-  fixed to it, and a body with none with the bodies its tubes join it to.
-- **The winch point** as a cone: the ground anchor.
-- **Bodies and stations** as groups of points. Clicking a point highlights its
-  body, clicking again each station it belongs to.
+- **Tubes** as cylinders at their `diameter`, between their two bodies, or as
+  lines where the file gives no `diameter`. Frames carry points only, so a body
+  moves with the mean displacement of the points fixed to it, and a body with
+  none with the bodies its tubes join it to.
+- **Canopy faces** as a translucent surface over their corners.
+- **Each `fixed` point** as a cone: the ground anchor.
+- **Bodies and spanwise stations** as groups of points. Clicking a point
+  highlights its body, clicking again each station it belongs to.
 
 `palette` recolors any of these; the overlay carries a legend of the roles the
 run has.
@@ -68,15 +70,16 @@ by name: arrow-js decodes only codecs the host registers, and this viewer
 registers none.
 
 - Schema metadata key `topology` holds an awesIO structure document as JSON:
-  `headers`/`data` blocks referencing each other by name.
+  `headers`/`units`/`data` blocks referencing each other by name.
 - Columns `X`, `Y`, `Z` hold one world-frame position list per row, one row per
   frame, one position per row of the `points` block.
 
 The document is read against `schema/structure_schema.yml`, vendored from
-1-Bart-1/awesIO@2568e27; `pnpm generate` writes its TypeScript types to
-`src/generated/`. `decodeRun` refuses an unknown major `awesIO_version` and
-warns on an unknown minor, reads an absent optional block as an empty one, and
-refuses a document whose `connectivity_sha` its own blocks do not hash to.
+1-Bart-1/awesIO@99a36e2, awesIO 0.1.0; `pnpm generate` writes its TypeScript
+types to `src/generated/`. `decodeRun` refuses an unknown major `awesIO_version`
+and warns on an unknown minor, reads an absent optional block as an empty one
+and an absent optional column as absent, and refuses a document whose
+`connectivity_sha` its own blocks do not hash to.
 
 ## Development
 
