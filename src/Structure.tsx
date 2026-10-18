@@ -64,13 +64,12 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 /**
  * One matrix per tube placing a unit cylinder, of unit diameter along +y, between
- * its two bodies at the tube's `diameter`, in the simulation frame. None where the
- * tubes carry no `diameter`.
+ * its two `ends` (as `tubeEnds` gives them) at the tube's `diameter`, in the
+ * simulation frame. None where the tubes carry no `diameter`.
  */
-export function tubeMatrices(run: Run, frame: Frame): THREE.Matrix4[] {
+export function tubeMatrices(run: Run, ends: Float32Array): THREE.Matrix4[] {
   const diameters = optionalColumnValues<number>(run.topology.tubes, "diameter");
   if (!diameters) return [];
-  const ends = tubeEnds(run, frame);
   return diameters.map((diameter, i) => {
     const start = new THREE.Vector3().fromArray(ends, i * 6);
     const end = new THREE.Vector3().fromArray(ends, i * 6 + 3);
@@ -104,14 +103,15 @@ function useBufferAttribute(values: Float32Array) {
 /** Tubes as cylinders at their diameter, or as lines where they carry none. */
 function Tubes({ run, frame, color }: { run: Run; frame: Frame; color: string }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
-  const matrices = useMemo(() => tubeMatrices(run, frame), [run, frame]);
+  const ends = useMemo(() => tubeEnds(run, frame), [run, frame]);
+  const matrices = useMemo(() => tubeMatrices(run, ends), [run, ends]);
+  const axes = useBufferAttribute(ends);
   useLayoutEffect(() => {
     if (!mesh.current) return;
     matrices.forEach((matrix, i) => mesh.current!.setMatrixAt(i, matrix));
     mesh.current.instanceMatrix.needsUpdate = true;
     mesh.current.computeBoundingSphere();
   }, [matrices]);
-  const axes = useBufferAttribute(useMemo(() => tubeEnds(run, frame), [run, frame]));
 
   if (matrices.length === 0) {
     return (
@@ -198,18 +198,20 @@ export function Structure({
         <lineBasicMaterial vertexColors />
       </lineSegments>
       <Tubes run={run} frame={frame} color={colors.tube} />
-      <mesh key={canopy.count}>
-        <bufferGeometry>
-          <primitive attach="attributes-position" object={canopy} />
-        </bufferGeometry>
-        <meshBasicMaterial
-          color={colors.canopy}
-          side={THREE.DoubleSide}
-          transparent
-          opacity={0.35}
-          depthWrite={false}
-        />
-      </mesh>
+      {canopy.count > 0 && (
+        <mesh key={canopy.count}>
+          <bufferGeometry>
+            <primitive attach="attributes-position" object={canopy} />
+          </bufferGeometry>
+          <meshBasicMaterial
+            color={colors.canopy}
+            side={THREE.DoubleSide}
+            transparent
+            opacity={0.35}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
       <points onClick={pickPoint}>
         <bufferGeometry>
           <primitive attach="attributes-position" object={points} />

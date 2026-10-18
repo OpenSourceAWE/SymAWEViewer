@@ -144,7 +144,7 @@ describe("bodyPositions", () => {
     const bodyNames = columnValues<string>(run.topology.bodies, "name");
     const at = (name: string) =>
       new THREE.Vector3().fromArray(placed, bodyNames.indexOf(name) * 3);
-    const [first] = tubeMatrices(run, run.frames[0]);
+    const [first] = tubeMatrices(run, tubeEnds(run, run.frames[0]));
     const [a, b] = columnValues<NamePair>(run.topology.tubes, "bodies")[0];
     const diameter = columnValues<number>(run.topology.tubes, "diameter")[0];
 
@@ -160,7 +160,7 @@ describe("bodyPositions", () => {
     const bare = example("v3_beam_structure");
     withoutColumn(bare.tubes!, "diameter");
     const lines = decodeRun(runOf(bare, moved));
-    expect(tubeMatrices(lines, lines.frames[0])).toEqual([]);
+    expect(tubeMatrices(lines, tubeEnds(lines, lines.frames[0]))).toEqual([]);
     expect(tubeEnds(lines, lines.frames[0])).toEqual(tubeEnds(run, run.frames[0]));
   });
 });

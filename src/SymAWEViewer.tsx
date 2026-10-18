@@ -177,6 +177,10 @@ export function SymAWEViewer({
   const tubeCount = run.topology.tubes.data.length;
   const faceCount = run.topology.canopy_faces.data.length;
   const anchorCount = anchorPoints(run.topology).length;
+  const anchorLabel =
+    anchorCount === 1
+      ? "1 fixed point, the ground anchor"
+      : `${anchorCount} fixed points, the ground anchors`;
   const pickNext = (pick: PointPick) =>
     setHighlight((current) => nextGroup(pick, current));
 
@@ -246,7 +250,7 @@ export function SymAWEViewer({
               <Swatch
                 color={colors.anchor}
                 glyph="▲"
-                label="fixed point, the ground anchor"
+                label={anchorLabel}
               />
             )}
           </div>
