@@ -1,10 +1,14 @@
 import { useMemo } from "react";
 import * as THREE from "three";
+import { Line } from "@react-three/drei";
 import {
+  canopyPositions,
   pointPositions,
   segmentPositions,
+  tubeAxes,
   type Frame,
   type Run,
+  type TubeAxis,
 } from "./topology";
 
 /** The simulation frame is z-up; three.js is y-up. */
@@ -15,6 +19,10 @@ export interface StructureProps {
   frame: Frame;
   segmentColor?: string;
   pointColor?: string;
+  canopyColor?: string;
+  tubeColor?: string;
+  /** Width of the segment lines [px]. */
+  lineWidth?: number;
   pointSize?: number;
 }
 
@@ -22,32 +30,87 @@ function useBufferAttribute(values: Float32Array) {
   return useMemo(() => new THREE.BufferAttribute(values, 3), [values]);
 }
 
+/** A flat `[x, y, z, ...]` buffer as the list of points drei's `Line` takes. */
+function toTriples(values: Float32Array): [number, number, number][] {
+  const triples: [number, number, number][] = [];
+  for (let i = 0; i < values.length; i += 3) {
+    triples.push([values[i], values[i + 1], values[i + 2]]);
+  }
+  return triples;
+}
+
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+
+/** A cylinder along `axis`, as three.js builds one along its own y axis. */
+function Tube({ axis, color }: { axis: TubeAxis; color: string }) {
+  const start = new THREE.Vector3(...axis.start);
+  const along = new THREE.Vector3(...axis.end).sub(start);
+  const centre = start.addScaledVector(along, 0.5);
+  const turn = new THREE.Quaternion().setFromUnitVectors(
+    Y_AXIS,
+    along.clone().normalize(),
+  );
+  const radius = axis.diameter / 2;
+  return (
+    <mesh position={centre} quaternion={turn}>
+      <cylinderGeometry args={[radius, radius, along.length(), 12]} />
+      <meshBasicMaterial color={color} />
+    </mesh>
+  );
+}
+
 /**
- * The structure itself, as lines plus points, already rotated into three.js
- * axes. Render it inside your own `Canvas` when you want custom chrome.
+ * The structure itself, as lines, points, tubes and a translucent canopy,
+ * already rotated into three.js axes. Render it inside your own `Canvas` when
+ * you want custom chrome.
  */
 export function Structure({
   run,
   frame,
-  segmentColor = "#8fa4c8",
+  segmentColor = "#c4d0e6",
   pointColor = "#ffb454",
+  canopyColor = "#6f93d6",
+  tubeColor = "#e9edf5",
+  lineWidth = 1.5,
   pointSize = 1.2,
 }: StructureProps) {
-  const segments = useBufferAttribute(
-    useMemo(() => segmentPositions(run, frame), [run, frame]),
+  const segments = useMemo(
+    () => toTriples(segmentPositions(run, frame)),
+    [run, frame],
+  );
+  const canopy = useBufferAttribute(
+    useMemo(() => canopyPositions(run, frame), [run, frame]),
   );
   const points = useBufferAttribute(
-    useMemo(() => pointPositions(frame), [frame]),
+    useMemo(() => pointPositions(run, frame), [run, frame]),
   );
+  const tubes = useMemo(() => tubeAxes(run, frame), [run, frame]);
 
   return (
     <group rotation={Z_UP_TO_Y_UP}>
-      <lineSegments>
+      {segments.length > 0 && (
+        <Line
+          points={segments}
+          segments
+          color={segmentColor}
+          lineWidth={lineWidth}
+        />
+      )}
+      <mesh>
         <bufferGeometry>
-          <primitive attach="attributes-position" object={segments} />
+          <primitive attach="attributes-position" object={canopy} />
         </bufferGeometry>
-        <lineBasicMaterial color={segmentColor} transparent opacity={0.75} />
-      </lineSegments>
+        <meshBasicMaterial
+          color={canopyColor}
+          transparent
+          opacity={0.5}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
+      </mesh>
+      {tubes.map((axis, i) => (
+        <Tube key={i} axis={axis} color={tubeColor} />
+      ))}
       <points>
         <bufferGeometry>
           <primitive attach="attributes-position" object={points} />

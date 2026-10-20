@@ -4,9 +4,8 @@
 > and the package name all change without notice, and there are no tests yet.
 > Not on npm — pin a git tag if you depend on it.
 
-Browser viewer for SymbolicAWEModels runs. Reads the `.arrow` files SymAWE
-exports: frame columns plus an awesIO structure topology carried in the schema
-metadata.
+Browser viewer for AWE systems described in awesIO's structure schema: the
+`.arrow` logs SymAWE exports, or a structure document on its own.
 
 Consumed by `symawe.com`.
 
@@ -44,17 +43,25 @@ check silently fails. Hosts should `resolve.dedupe` all five.
 
 ## Run format
 
-A run is one Arrow IPC file, uncompressed — arrow-js does not implement IPC body
-decompression, so `compress=:lz4` files will not load in a browser.
+A run is either an Arrow IPC log or a bare structure document; `decodeRun` tells
+them apart from the first bytes. Both follow awesIO's `structure_schema.yml`:
+`headers`/`data` tables, every reference by name.
 
-- Schema metadata key `topology` holds the structure as JSON, in the
-  `headers`/`data` table dialect, referencing points by name.
-- Columns `X`, `Y`, `Z` hold one world-frame position list per row, one row per
-  frame.
+- **Arrow log**, uncompressed — arrow-js does not implement IPC body
+  decompression, so `compress=:lz4` files will not load in a browser. Schema
+  metadata key `topology` holds the structure as JSON. Columns `X`, `Y`, `Z`
+  hold one world-frame position list per row, one row per frame: the points
+  first, then the origins of the wings and of the bodies, as KiteUtils logs
+  them.
+- **Structure document** as JSON: a one-frame run posed at the `pos_ENU` of its
+  points, wings and bodies.
 
-`decodeRun` refuses a file whose declared `n_points` disagrees with the frame
-arrays or the points block. That is the check that catches a log replayed
-against a structure it was not recorded with.
+Tubes are drawn between the origins of their two bodies, so they move with the
+bodies in a log.
+
+`decodeRun` refuses a file whose frame length disagrees with `n_points` plus the
+wings and bodies, or whose points block disagrees with `n_points`. That is the
+check that catches a log replayed against a structure it was not recorded with.
 
 ## Versioning
 

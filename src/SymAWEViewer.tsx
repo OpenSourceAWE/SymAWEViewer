@@ -11,7 +11,10 @@ import { framing, Structure } from "./Structure";
 import { decodeRun, loadRun, type Run } from "./topology";
 
 export interface SymAWEViewerProps {
-  /** URL of an exported `.arrow` run. Ignored when `data` is given. */
+  /**
+   * URL of an exported `.arrow` run or of a structure document as JSON. Ignored
+   * when `data` is given.
+   */
   src?: string;
   /** Already-fetched run bytes, for hosts that authenticate the request. */
   data?: ArrayBuffer | Uint8Array;
@@ -180,7 +183,7 @@ export function SymAWEViewer({
           <p style={{ margin: 0 }}>{meta.note}</p>
           <p style={{ margin: "0.6rem 0 0" }}>
             {meta.n_points} points · {run.topology.segments.data.length} segments
-            · {run.topology.tethers.data.length} line runs
+            · {run.topology.tethers?.data.length ?? 0} tethers
           </p>
           <p style={{ margin: 0 }}>
             {run.frames.length} frame{run.frames.length === 1 ? "" : "s"} · sha{" "}
