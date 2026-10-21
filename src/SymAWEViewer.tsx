@@ -9,6 +9,7 @@ import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
 import { framing, resolvePalette, Structure, type Palette } from "./Structure";
 import {
+  anchorPoints,
   nextGroup,
   segmentRoles,
   type PointGroup,
@@ -174,6 +175,12 @@ export function SymAWEViewer({
   const colors = resolvePalette(palette);
   const roles = new Set(segmentRoles(run.topology));
   const tubeCount = run.topology.tubes.data.length;
+  const faceCount = run.topology.canopy_faces.data.length;
+  const anchorCount = anchorPoints(run.topology).length;
+  const anchorLabel =
+    anchorCount === 1
+      ? "1 fixed point, the ground anchor"
+      : `${anchorCount} fixed points, the ground anchors`;
   const pickNext = (pick: PointPick) =>
     setHighlight((current) => nextGroup(pick, current));
 
@@ -232,8 +239,19 @@ export function SymAWEViewer({
             {tubeCount > 0 && (
               <Swatch color={colors.tube} label={`${tubeCount} tubes between bodies`} />
             )}
-            {run.topology.winches.data.length > 0 && (
-              <Swatch color={colors.anchor} glyph="▲" label="winch, the ground anchor" />
+            {faceCount > 0 && (
+              <Swatch
+                color={colors.canopy}
+                glyph="▬"
+                label={`${faceCount} canopy faces`}
+              />
+            )}
+            {anchorCount > 0 && (
+              <Swatch
+                color={colors.anchor}
+                glyph="▲"
+                label={anchorLabel}
+              />
             )}
           </div>
           <p style={{ margin: "0.6rem 0 0", color: colors.highlight }}>

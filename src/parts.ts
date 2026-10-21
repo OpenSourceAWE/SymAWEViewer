@@ -38,7 +38,7 @@ export function segmentRoles(topology: Topology): SegmentRole[] {
 }
 
 /** The blocks whose rows group points: the points fixed to a body, or a station's. */
-export type PointGroupBlock = "bodies" | "stations";
+export type PointGroupBlock = "bodies" | "spanwise_stations";
 
 /** A body's or a station's points, named by the block and row they come from. */
 export interface PointGroup {
@@ -52,7 +52,7 @@ export interface PointGroup {
  */
 export function pointGroups(run: Run, block: PointGroupBlock): Map<string, number[]> {
   const groups = new Map<string, number[]>();
-  const { points, stations } = run.topology;
+  const { points, spanwise_stations: stations } = run.topology;
   if (block === "bodies") {
     columnValues<OptionalName>(points, "body").forEach((body, point) => {
       if (body === null) return;
@@ -82,8 +82,8 @@ export interface PointPick {
 export function pointPick(run: Run, index: number): PointPick {
   const body = columnValues<OptionalName>(run.topology.points, "body")[index];
   const groups: PointGroup[] = body === null ? [] : [{ block: "bodies", name: body }];
-  for (const [name, members] of pointGroups(run, "stations")) {
-    if (members.includes(index)) groups.push({ block: "stations", name });
+  for (const [name, members] of pointGroups(run, "spanwise_stations")) {
+    if (members.includes(index)) groups.push({ block: "spanwise_stations", name });
   }
   return { point: columnValues<string>(run.topology.points, "name")[index], groups };
 }
@@ -102,11 +102,18 @@ export function nextGroup(
   return pick.groups[(at + 1) % pick.groups.length] ?? null;
 }
 
+/** The indices of the points held in the world: the ground anchors. */
+export function anchorPoints(topology: Topology): number[] {
+  return columnValues<boolean>(topology.points, "fixed").flatMap((fixed, point) =>
+    fixed ? [point] : [],
+  );
+}
+
 /** Each body's name to its row in the `bodies` block. */
 export function bodyRows(run: Run): Map<string, number> {
   return new Map(
     columnValues<string>(run.topology.bodies, "name").map((name, i) => [name, i]),
-  )
+  );
 }
 
 /** The mean of `vectors`, or null when there are none. */
@@ -153,6 +160,19 @@ export function bodyPositions(run: Run, frame: Frame): Float32Array {
     position.forEach((value, axis) => {
       out[i * 3 + axis] = value + displacement[axis];
     });
+  });
+  return out;
+}
+
+/** Flat `[x, y, z, ...]` positions in `frame` of each tube's two bodies, in row order. */
+export function tubeEnds(run: Run, frame: Frame): Float32Array {
+  const placed = bodyPositions(run, frame);
+  const row = bodyRows(run);
+  const ends = columnValues<NamePair>(run.topology.tubes, "bodies").flat();
+  const out = new Float32Array(ends.length * 3);
+  ends.forEach((body, i) => {
+    const at = row.get(body)! * 3;
+    out.set(placed.subarray(at, at + 3), i * 3);
   });
   return out;
 }

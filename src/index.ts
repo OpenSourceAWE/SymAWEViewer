@@ -9,6 +9,7 @@ export {
   type StructureProps,
 } from "./Structure";
 export {
+  anchorPoints,
   bodyPositions,
   pointGroups,
   segmentRoles,
@@ -19,11 +20,13 @@ export {
 } from "./parts";
 export {
   AWESIO_VERSION,
+  canopyPositions,
   column,
   columnValues,
   connectivitySha,
   decodeRun,
   loadRun,
+  optionalColumnValues,
   pointPositions,
   segmentPositions,
   type Frame,
