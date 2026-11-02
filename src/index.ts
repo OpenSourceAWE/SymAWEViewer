@@ -19,6 +19,15 @@ export {
   type SegmentRole,
 } from "./parts";
 export {
+  defaultPanels,
+  kiteAttitude,
+  nearestFrame,
+  runQuantities,
+  runTimes,
+  type Quantity,
+} from "./quantities";
+export { RunPanels, TimePanel, type RunPanelsProps, type TimePanelProps } from "./TimePanel";
+export {
   AWESIO_VERSION,
   canopyPositions,
   column,
