@@ -16,8 +16,8 @@ import {
 import type { Run } from "./topology";
 
 const SERIES_COLORS = ["#3987e5", "#d95926", "#199e70", "#c98500"];
-const INK = "#d7dae1";
-const MUTED = "#9aa0ad";
+export const INK = "#d7dae1";
+export const MUTED = "#9aa0ad";
 const GRID = "#1b2030";
 const CURSOR = "#f2f3f5";
 
@@ -27,7 +27,7 @@ const PLOT_HEIGHT = 96;
 const MARGIN = { left: 44, right: 8, top: 6, bottom: 18 };
 const DEFAULT_WIDTH = 400;
 
-const monospace = "12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace";
+export const monospace = "12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace";
 
 const stripStyle: CSSProperties = {
   flex: "0 1 auto",

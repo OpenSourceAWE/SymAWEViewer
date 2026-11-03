@@ -49,6 +49,15 @@ names:
 `palette` recolors any of these; the overlay carries a legend of the roles the
 run has.
 
+## Forces
+
+Toggles over the 3D view draw the forces a run carries, at the time cursor, and work on a run of any length. They are all off when a run opens, and a force the run does not hold is not offered.
+
+- **Spring force** colours each segment by `spring_force` on a diverging scale: compression, zero, tension. Off, the segments wear their role colours again. The scale spans the same force on both sides of zero, and that force is the 99.9th percentile of the run's magnitudes, so a single spike cannot turn the rest of the flight grey; anything beyond it saturates. The legend gives the scale and the range the run really reaches, in N.
+- **Aero and drag force arrows** start at each slot of `aero_force_*` or `drag_force_*` holding a force. All arrows of a run share one length per newton, so they can be compared with each other and across frames, and the legend names the longest of each.
+
+`palette` recolors them through `compression`, `unloaded`, `tension`, `aero` and `drag`.
+
 ## Time and panels
 
 A run of more than one frame gets a scrubber and 2D panels under the 3D view, all on one time cursor: drag the scrubber, or click or drag in a panel, to seek. `frame` moves the cursor from the host and `onFrameChange` reports where it went. A run with no `time` column runs its cursor in frame numbers.
@@ -72,6 +81,12 @@ The same data is yours to draw in your own layout:
 | `kiteAttitude(w, x, y, z)` | roll, pitch and yaw [rad] of a quaternion |
 | `run.table` | the run's Arrow table, for any column not listed |
 | `RunPanels`, `TimePanel` | the scrubber and panels, and one panel |
+| `runForces(run)` | the spring force and force arrows a run offers |
+| `forceColors(forces, limit, palette)` | one frame's spring forces as segment colours, for `Structure`'s `segmentColors` |
+| `arrowScale(forces, span)` | the metres per newton of a run's arrows, for `arrowEnds` |
+| `arrowEnds(arrows, frame, scale)` | one frame's arrows, for `ForceArrowsView` |
+| `ForceArrowsView` | arrows between `ends` in `color`, as thick as the run's `span` asks |
+| `ForceControls`, `NO_FORCES_SHOWN` | the force toggles with their legends, and all of them off |
 
 For custom chrome, drop `Structure` into your own `Canvas`, with `highlight`
 and `onPick` for the groups:
@@ -97,7 +112,9 @@ registers none.
   `headers`/`units`/`data` blocks referencing each other by name.
 - Columns `X`, `Y`, `Z` hold one world-frame position list per row, one row per
   frame, starting with one position per row of the `points` block. Slots after
-  those are ignored.
+  those draw no point.
+- `spring_force` holds one force per row of the `segments` block, tension positive.
+- `aero_force_*` and `drag_force_*` hold one force per slot of `X`, `Y` and `Z`.
 - Any other `KiteUtils` `sysstate.yaml` column feeds the panels.
 
 The document is read against `schema/structure_schema.yml`, vendored from

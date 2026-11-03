@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -7,7 +8,15 @@ import {
 } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
-import { framing, resolvePalette, Structure, type Palette } from "./Structure";
+import { ForceControls, NO_FORCES_SHOWN, type ForcesShown } from "./ForceControls";
+import {
+  ForceArrowsView,
+  forceColors,
+  framing,
+  resolvePalette,
+  Structure,
+  type Palette,
+} from "./Structure";
 import { RunPanels } from "./TimePanel";
 import {
   anchorPoints,
@@ -17,6 +26,7 @@ import {
   type PointPick,
   type SegmentRole,
 } from "./parts";
+import { arrowEnds, arrowScale, runForces } from "./quantities";
 import { decodeRun, loadRun, type Run } from "./topology";
 
 export interface SymAWEViewerProps {
@@ -86,6 +96,13 @@ function Swatch({ color, glyph = "━━", label }: SwatchProps) {
   );
 }
 
+/** What drawing `run` needs that stays the same over its frames. */
+function sceneOf(run: Run) {
+  const forces = runForces(run);
+  const { centre, span } = framing(run.frames[0]);
+  return { forces, centre, span, metresPerNewton: arrowScale(forces, span) };
+}
+
 /**
  * Drop-in run viewer: give it a `src` or `data` and size its parent. It brings
  * its own canvas, camera framing and styling, and depends on no CSS framework.
@@ -110,6 +127,29 @@ export function SymAWEViewer({
   const [highlight, setHighlight] = useState<PointGroup | null>(null);
   const [cursor, setCursor] = useState(frame);
   useEffect(() => setCursor(frame), [frame]);
+  const [shownForces, setShownForces] = useState<ForcesShown>(NO_FORCES_SHOWN);
+  const scene = useMemo(() => run && sceneOf(run), [run]);
+  const lastFrame = run ? run.frames.length - 1 : 0;
+  const current = Math.min(cursor, lastFrame);
+  const colors = resolvePalette(palette);
+  const { compression, unloaded, tension } = colors;
+  const spring = shownForces.spring ? scene?.forces.spring : undefined;
+  const segmentColors = useMemo(
+    () =>
+      spring &&
+      forceColors(spring.rows[current], spring.limit, { compression, unloaded, tension }),
+    [spring, current, compression, unloaded, tension],
+  );
+  const arrows = useMemo(
+    () =>
+      scene?.forces.arrows
+        .filter(({ key }) => shownForces[key])
+        .map((force) => ({
+          key: force.key,
+          ends: arrowEnds(force, current, scene.metresPerNewton),
+        })) ?? [],
+    [scene, shownForces, current],
+  );
 
   const latest = useRef({ fetchOptions, onLoad, onError });
   latest.current = { fetchOptions, onLoad, onError };
@@ -143,6 +183,7 @@ export function SymAWEViewer({
     setError(null);
     setHighlight(null);
     setCursor(frame);
+    setShownForces(NO_FORCES_SHOWN);
 
     if (data) {
       try {
@@ -172,7 +213,7 @@ export function SymAWEViewer({
     );
   }
 
-  if (!run) {
+  if (!run || !scene) {
     return (
       <div ref={box} className={className} style={{ ...centred, ...style }}>
         <p style={{ color: "#9aa0ad", margin: 0 }}>loading…</p>
@@ -180,11 +221,8 @@ export function SymAWEViewer({
     );
   }
 
-  const lastFrame = run.frames.length - 1;
-  const current = Math.min(cursor, lastFrame);
-  const { centre, span } = framing(run.frames[0]);
+  const { forces, centre, span } = scene;
   const meta = run.topology.metadata;
-  const colors = resolvePalette(palette);
   const roles = new Set(segmentRoles(run.topology));
   const tubeCount = run.topology.tubes.data.length;
   const faceCount = run.topology.canopy_faces.data.length;
@@ -221,7 +259,11 @@ export function SymAWEViewer({
             palette={palette}
             highlight={highlight}
             onPick={pickNext}
+            segmentColors={segmentColors}
           />
+          {arrows.map(({ key, ends }) => (
+            <ForceArrowsView key={key} ends={ends} color={colors[key]} span={span} />
+          ))}
           <Grid
             args={[span * 4, span * 4]}
             cellSize={10}
@@ -249,7 +291,7 @@ export function SymAWEViewer({
             </p>
             <div style={{ margin: "0.6rem 0 0" }}>
               {(Object.keys(ROLE_LABELS) as SegmentRole[])
-                .filter((role) => roles.has(role))
+                .filter((role) => roles.has(role) && !spring)
                 .map((role) => (
                   <Swatch key={role} color={colors[role]} label={ROLE_LABELS[role]} />
                 ))}
@@ -278,6 +320,12 @@ export function SymAWEViewer({
             </p>
           </div>
         )}
+        <ForceControls
+          forces={forces}
+          shown={shownForces}
+          palette={colors}
+          onChange={setShownForces}
+        />
         {children}
       </div>
       {lastFrame > 0 && <RunPanels run={run} frame={current} onSeek={seek} />}
