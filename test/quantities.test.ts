@@ -30,7 +30,8 @@ function withValues(flown: Run, names: string[], value: (element: number) => num
 
 function quantity(id: string): Quantity {
   const found = quantities.find((candidate) => candidate.id === id);
-/** `flown` with each value of the named columns, or element of a list, set by `value`. */
+  const known = quantities.map((candidate) => candidate.id).join(" ");
+  if (!found) throw new Error(`no quantity ${id}: ${known}`);
   return found;
 }
 
