@@ -1,8 +1,4 @@
-// Writes test/fixtures/v3_psm_sim.arrow from the log scripts/export_v3_fixture.jl wrote, with every
-// flight column untouched and its awesIO 1.0.0 document rewritten at the vendored awesIO 0.1.0.
-// Rows keep their order, so a segment's row still indexes spring_force. Canopy faces come from the
-// V3 PSM example, whose point names the log shares.
-//   node scripts/v3_fixture_document.mjs <log.arrow>
+// node scripts/v3_fixture_document.mjs <log.arrow>: the fixture run, its document at awesIO 0.1.0.
 import { readFileSync, writeFileSync } from "node:fs";
 import { tableFromIPC, tableToIPC } from "apache-arrow";
 import { createServer } from "vite";
@@ -10,9 +6,10 @@ import { parse } from "yaml";
 
 const table = tableFromIPC(readFileSync(process.argv[2]));
 const log = JSON.parse(table.schema.metadata.get("topology"));
+// The source of the canopy faces, its point names being the log's.
 const example = parse(readFileSync("test/fixtures/v3_psm_structure.yml", "utf8"));
 
-/** Block `name` of the log, with `columns` (written header to the log's header) in that order. */
+/** Block `name` of the log in its row order, with `columns` (written header to log header). */
 function block(name, columns, transform = {}) {
   const source = log[name];
   const headers = Object.keys(columns);

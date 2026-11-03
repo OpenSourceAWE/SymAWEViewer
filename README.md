@@ -51,27 +51,27 @@ run has.
 
 ## Time and panels
 
-A run of more than one frame gets a scrubber and 2D panels under the 3D view,
-all on one time cursor: drag the scrubber, or click or drag in a panel, to seek.
-`frame` moves the cursor from the host and `onFrameChange` reports where it went.
+A run of more than one frame gets a scrubber and 2D panels under the 3D view, all on one time cursor: drag the scrubber, or click or drag in a panel, to seek. `frame` moves the cursor from the host and `onFrameChange` reports where it went. A run with no `time` column runs its cursor in frame numbers.
 
-The panels open on winch force, apparent wind, AoA, heading/course, tether length
-and depower/steering, and the list above them adds any other quantity the run has.
-Angles are shown in degrees. A log carries every column whether the model filled it
-or not, so a column that is zero throughout is not offered.
+The panels open on winch force, apparent wind, AoA, heading/course, tether length and depower/steering, and the list above them adds the run's other named scalar and vector columns and generic variables. Angles are shown in degrees. The list leaves out a column holding only zeros or NaN, unless a default panel opens on it.
 
 Three kinds of quantity are computed rather than read:
 
-- **Roll, pitch and yaw** of the first wing, from its quaternion, as KiteUtils'
-  `euler_KS`: against NED, so a level kite facing east has zero yaw.
-- **Lift, drag and L/D**, the summed `aero_force_*` split along the apparent wind
-  `v_wind_kite - vel_kite`.
-- **CL and CD**, at an air density of 1.225 kg/m³ and the canopy's area projected
-  along the kite's z axis in the first frame. A run without `canopy_faces` has
-  neither.
+- **Roll, pitch and yaw** of the first wing, from its quaternion, as KiteUtils' `euler_KS`: against NED, so a level kite has zero yaw facing north, +90° facing east and -90° facing west.
+- **Lift, drag and L/D**, the summed `aero_force_*` split along the apparent wind `v_wind_kite - vel_kite`. Drag is the part along it and lift all the rest, so side force in a turn counts as lift.
+- **CL and CD**, labelled as estimates: at an assumed air density of 1.225 kg/m³ and the canopy's area projected along the kite's z axis in the first frame. A run without `canopy_faces` has neither.
 
-`runQuantities(run)` gives all of them as plain arrays; `RunPanels` and `TimePanel`
-draw them in your own layout.
+The same data is yours to draw in your own layout:
+
+| Export | What it gives |
+| --- | --- |
+| `runQuantities(run)` | every quantity above, as plain arrays with a label and unit |
+| `defaultPanels(quantities)` | the panels a run opens on, as lists of quantity ids |
+| `runTimes(run)` | the time of each frame [s], or the frame numbers without a `time` column |
+| `nearestFrame(times, time)` | the frame nearest a time |
+| `kiteAttitude(w, x, y, z)` | roll, pitch and yaw [rad] of a quaternion |
+| `run.table` | the run's Arrow table, for any column not listed |
+| `RunPanels`, `TimePanel` | the scrubber and panels, and one panel |
 
 For custom chrome, drop `Structure` into your own `Canvas`, with `highlight`
 and `onPick` for the groups:

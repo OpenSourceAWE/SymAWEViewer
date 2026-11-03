@@ -252,23 +252,27 @@ function aeroQuantities(run: Run): Quantity[] {
   if (area === 0) return quantities;
   return [
     ...quantities,
-    derived("CL", "CL", "-", lift.map((value, i) => value / (pressure[i] * area))),
-    derived("CD", "CD", "-", drag.map((value, i) => value / (pressure[i] * area))),
+    derived("CL", "CL (estimate)", "-", lift.map((value, i) => value / (pressure[i] * area))),
+    derived("CD", "CD (estimate)", "-", drag.map((value, i) => value / (pressure[i] * area))),
   ];
 }
 
 /**
- * Everything of `run` that can be plotted over time, in degrees where it is an angle.
- * A log carries every column whether the model filled it or not, so a column that
- * is zero throughout is left out.
+ * Everything of `run` that can be plotted over time, in degrees where it is an angle:
+ * the columns a default panel opens on, and any other holding a value besides zero and NaN.
  */
 export function runQuantities(run: Run): Quantity[] {
-  return [
+  const quantities = [
     ...COLUMNS.flatMap((spec) => fromColumn(run, spec)),
     ...attitudeQuantities(run),
     ...aeroQuantities(run),
     ...genericVariables(run),
-  ].filter((quantity) => quantity.values.some((value) => value !== 0));
+  ];
+  const kept = new Set(PANEL_COLUMNS.flat());
+  for (const { column, values } of quantities) {
+    if (values.some((value) => value !== 0 && !Number.isNaN(value))) kept.add(column);
+  }
+  return quantities.filter(({ column }) => kept.has(column));
 }
 
 /** The panels a run opens on, each a list of quantity ids sharing an axis; empty ones dropped. */

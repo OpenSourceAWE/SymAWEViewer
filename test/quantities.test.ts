@@ -1,3 +1,4 @@
+import { Table, vectorFromArray } from "apache-arrow";
 import { describe, expect, it } from "vitest";
 import {
   defaultPanels,
@@ -7,16 +8,29 @@ import {
   runTimes,
   type Quantity,
 } from "../src/quantities";
-import { decodeRun } from "../src/topology";
+import { decodeRun, type Run } from "../src/topology";
 import { example, fixture, runOf, V3_RUN } from "./fixtures";
 
 const run = decodeRun(fixture(V3_RUN));
 const quantities = runQuantities(run);
 const raw = (name: string) => run.table.getChild(name)!;
 
+/** `flown` with each value of the named columns, and each element of a list, set by `value`. */
+function withValues(flown: Run, names: string[], value: (element: number) => number): Run {
+  const replaced = names.map((name) => {
+    const column = flown.table.getChild(name)!;
+    const rows = Array.from({ length: flown.table.numRows }, (_, frame) => {
+      const row = column.get(frame);
+      return typeof row === "number" ? value(0) : Array.from(row, (_, i) => value(i));
+    });
+    return [name, vectorFromArray(rows, column.type)];
+  });
+  return { ...flown, table: flown.table.assign(new Table(Object.fromEntries(replaced))) };
+}
+
 function quantity(id: string): Quantity {
   const found = quantities.find((candidate) => candidate.id === id);
-  if (!found) throw new Error(`no quantity ${id}: ${quantities.map((q) => q.id).join(" ")}`);
+/** `flown` with each value of the named columns, or element of a list, set by `value`. */
   return found;
 }
 
@@ -42,6 +56,16 @@ describe("runQuantities", () => {
     }
   });
 
+  it("keeps a default panel's line for a run flown without that control", () => {
+    const unsteered = runQuantities(withValues(run, ["steering"], () => 0));
+    expect(defaultPanels(unsteered)).toContainEqual(["depower", "steering"]);
+  });
+
+  it("keeps a vector whole where only one of its elements is zero", () => {
+    const flown = withValues(run, ["vel_kite"], (element) => (element === 1 ? 0 : 1));
+    expect(runQuantities(flown).map(({ id }) => id)).toContain("vel_kite/y");
+  });
+
   it("offers a filled generic variable under the name its column carries", () => {
     expect(quantity("var_15").label).toBe("var_15");
   });
@@ -58,6 +82,12 @@ describe("kiteAttitude", () => {
     expect(roll).toBeCloseTo(0, 12);
     expect(pitch).toBeCloseTo(0, 12);
     expect(yaw).toBeCloseTo(-Math.PI / 2, 12);
+  });
+
+  it("has zero yaw facing north and +90 degrees facing east", () => {
+    const half = -Math.PI / 4;
+    expect(kiteAttitude(Math.cos(half), 0, 0, Math.sin(half)).yaw).toBeCloseTo(0, 12);
+    expect(kiteAttitude(0, 0, 0, 1).yaw).toBeCloseTo(Math.PI / 2, 12);
   });
 
   it("reads a rotation about the east-up plane's normal as pitching the nose up", () => {
@@ -102,6 +132,19 @@ describe("aerodynamic quantities", () => {
     const force = quantity("lift").values[frame];
     const area = force / (0.5 * 1.225 * speed * speed * quantity("CL").values[frame]);
     expect(area).toBeCloseTo(17.56, 1);
+  });
+
+  it("offers no aero quantity for a run that never filled its aero forces", () => {
+    const unfilled = withValues(run, ["aero_force_x", "aero_force_y", "aero_force_z"], () => 0);
+    const ids = runQuantities(unfilled).map(({ id }) => id);
+    for (const aero of ["lift", "drag", "lift_over_drag", "CL", "CD"]) {
+      expect(ids).not.toContain(aero);
+    }
+  });
+
+  it("labels CL and CD as the estimates their assumed density and area make them", () => {
+    expect(quantity("CL").label).toBe("CL (estimate)");
+    expect(quantity("CD").label).toBe("CD (estimate)");
   });
 
   it("has no CL or CD without canopy faces to take an area from, but keeps L/D", () => {

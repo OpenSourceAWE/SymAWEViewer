@@ -302,13 +302,32 @@ export interface RunPanelsProps {
   onSeek: (frame: number) => void;
 }
 
+/** The panels someone chose on `run`, each a list of quantity ids sharing an axis. */
+interface PanelChoice {
+  run: Run;
+  panels: string[][];
+}
+
+/** The panels of `choice` if it was made on `run`, else the default panels of `run`. */
+export function panelsOfRun(
+  choice: PanelChoice | null,
+  run: Run,
+  quantities: Quantity[],
+): string[][] {
+  return choice?.run === run ? choice.panels : defaultPanels(quantities);
+}
+
 /** The scrubber and the 2D panels of a run, chosen from the columns it carries. */
 export function RunPanels({ run, frame, onSeek }: RunPanelsProps) {
   const quantities = useMemo(() => runQuantities(run), [run]);
   const times = useMemo(() => runTimes(run), [run]);
-  const [panels, setPanels] = useState(() => defaultPanels(quantities));
-
-  const byId = new Map(quantities.map((quantity) => [quantity.id, quantity]));
+  const [choice, setChoice] = useState<PanelChoice | null>(null);
+  const panels = useMemo(() => panelsOfRun(choice, run, quantities), [choice, run, quantities]);
+  const lines = useMemo(() => {
+    const byId = new Map(quantities.map((quantity) => [quantity.id, quantity]));
+    return panels.map((panel) => panel.map((id) => byId.get(id)!));
+  }, [panels, quantities]);
+  const cursor = Math.min(frame, times.length - 1);
   const shown = new Set(panels.flat());
 
   return (
@@ -319,15 +338,17 @@ export function RunPanels({ run, frame, onSeek }: RunPanelsProps) {
           aria-label="time"
           min={0}
           max={times.length - 1}
-          value={frame}
+          value={cursor}
           onChange={(event) => onSeek(Number(event.target.value))}
           style={{ flex: 1, minWidth: 0, accentColor: CURSOR }}
         />
-        <span style={{ color: INK, whiteSpace: "nowrap" }}>{times[frame].toFixed(2)} s</span>
+        <span style={{ color: INK, whiteSpace: "nowrap" }}>
+          {run.table.getChild("time") ? `${times[cursor].toFixed(2)} s` : `frame ${cursor}`}
+        </span>
         <select
           aria-label="add a panel"
           value=""
-          onChange={(event) => setPanels([...panels, [event.target.value]])}
+          onChange={(event) => setChoice({ run, panels: [...panels, [event.target.value]] })}
           style={{ maxWidth: "9rem", background: "transparent", color: MUTED, font: "inherit" }}
         >
           <option value="" disabled>
@@ -343,14 +364,16 @@ export function RunPanels({ run, frame, onSeek }: RunPanelsProps) {
         </select>
       </div>
       <div style={gridStyle}>
-        {panels.map((panel) => (
+        {panels.map((panel, i) => (
           <TimePanel
             key={panel.join()}
-            quantities={panel.map((id) => byId.get(id)!)}
+            quantities={lines[i]}
             times={times}
-            frame={frame}
+            frame={cursor}
             onSeek={onSeek}
-            onRemove={() => setPanels(panels.filter((other) => other !== panel))}
+            onRemove={() =>
+              setChoice({ run, panels: panels.filter((other) => other !== panel) })
+            }
           />
         ))}
       </div>

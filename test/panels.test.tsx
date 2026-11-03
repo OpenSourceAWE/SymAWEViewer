@@ -1,9 +1,16 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { niceTicks, RunPanels, seriesPath, TimePanel, timeAtX } from "../src/TimePanel";
-import { runQuantities, runTimes } from "../src/quantities";
+import {
+  niceTicks,
+  panelsOfRun,
+  RunPanels,
+  seriesPath,
+  TimePanel,
+  timeAtX,
+} from "../src/TimePanel";
+import { defaultPanels, runQuantities, runTimes } from "../src/quantities";
 import { decodeRun } from "../src/topology";
-import { fixture, V3_RUN } from "./fixtures";
+import { example, fixture, runOf, V3_RUN } from "./fixtures";
 
 const run = decodeRun(fixture(V3_RUN));
 const quantities = runQuantities(run);
@@ -25,7 +32,7 @@ describe("RunPanels", () => {
 
   it("offers what no panel shows, including attitude and the aero coefficients", () => {
     const html = render(0);
-    for (const label of ["roll", "pitch", "yaw", "CL", "CD", "L/D"]) {
+    for (const label of ["roll", "pitch", "yaw", "CL (estimate)", "CD (estimate)", "L/D"]) {
       expect(html).toContain(`>${label} [`);
     }
     expect(html).not.toContain(">winch force [");
@@ -40,6 +47,34 @@ describe("RunPanels", () => {
     const cursorAt = (html: string) => Number(html.match(/data-cursor="[^"]*" x1="([\d.]+)"/)![1]);
     expect(cursorAt(panel(60))).toBeGreaterThan(cursorAt(panel(0)));
     expect(panel(60)).toContain("609.8");
+  });
+
+  it("reads the cursor in seconds, or as a frame number for a run with no time column", () => {
+    expect(render(60)).toContain("3.00 s");
+    const columns = run.table.schema.fields.map(({ name }) => name);
+    const untimed = { ...run, table: run.table.select(columns.filter((name) => name !== "time")) };
+    const html = renderToStaticMarkup(<RunPanels run={untimed} frame={60} onSeek={() => {}} />);
+    expect(html).toContain("frame 60");
+    expect(html).not.toContain("60.00 s");
+  });
+
+  it("holds the cursor at the last frame of a run shorter than the frame it is given", () => {
+    expect(render(1000)).toContain('value="60"');
+  });
+});
+
+describe("panelsOfRun", () => {
+  const other = decodeRun(runOf(example("v3_psm_structure")));
+
+  it("keeps the panels chosen on a run for that run", () => {
+    const panels = [["steering"]];
+    expect(panelsOfRun({ run, panels }, run, quantities)).toBe(panels);
+  });
+
+  it("opens another run on its own defaults, not on panels it may have no column for", () => {
+    const choice = { run, panels: [["steering"]] };
+    expect(panelsOfRun(choice, other, [])).toEqual([]);
+    expect(panelsOfRun(null, run, quantities)).toEqual(defaultPanels(quantities));
   });
 });
 
