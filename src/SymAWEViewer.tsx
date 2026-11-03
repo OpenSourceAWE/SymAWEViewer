@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -7,7 +8,15 @@ import {
 } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
-import { framing, resolvePalette, Structure, type Palette } from "./Structure";
+import { ForceControls, NO_FORCES_SHOWN, type ForcesShown } from "./ForceControls";
+import {
+  ForceArrowsView,
+  forceColors,
+  framing,
+  resolvePalette,
+  Structure,
+  type Palette,
+} from "./Structure";
 import { RunPanels } from "./TimePanel";
 import {
   anchorPoints,
@@ -17,6 +26,7 @@ import {
   type PointPick,
   type SegmentRole,
 } from "./parts";
+import { arrowEnds, runForces } from "./quantities";
 import { decodeRun, loadRun, type Run } from "./topology";
 
 export interface SymAWEViewerProps {
@@ -65,6 +75,9 @@ const overlayStyle: CSSProperties = {
   font: "12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace",
 };
 
+/** The longest force arrow of a run, as a share of the run's scale. */
+const LONGEST_ARROW_SHARE = 0.06;
+
 const ROLE_LABELS: Record<SegmentRole, string> = {
   power: "tether, reeled by a winch",
   tether: "tether",
@@ -110,6 +123,11 @@ export function SymAWEViewer({
   const [highlight, setHighlight] = useState<PointGroup | null>(null);
   const [cursor, setCursor] = useState(frame);
   useEffect(() => setCursor(frame), [frame]);
+  const [shownForces, setShownForces] = useState<ForcesShown>(NO_FORCES_SHOWN);
+  const scene = useMemo(
+    () => run && { forces: runForces(run), ...framing(run.frames[0]) },
+    [run],
+  );
 
   const latest = useRef({ fetchOptions, onLoad, onError });
   latest.current = { fetchOptions, onLoad, onError };
@@ -172,7 +190,7 @@ export function SymAWEViewer({
     );
   }
 
-  if (!run) {
+  if (!run || !scene) {
     return (
       <div ref={box} className={className} style={{ ...centred, ...style }}>
         <p style={{ color: "#9aa0ad", margin: 0 }}>loading…</p>
@@ -182,7 +200,7 @@ export function SymAWEViewer({
 
   const lastFrame = run.frames.length - 1;
   const current = Math.min(cursor, lastFrame);
-  const { centre, span } = framing(run.frames[0]);
+  const { forces, centre, span } = scene;
   const meta = run.topology.metadata;
   const colors = resolvePalette(palette);
   const roles = new Set(segmentRoles(run.topology));
@@ -199,6 +217,9 @@ export function SymAWEViewer({
     setCursor(next);
     onFrameChange?.(next);
   };
+  const spring = shownForces.spring ? forces.spring : undefined;
+  const newtonLength =
+    (span * LONGEST_ARROW_SHARE) / Math.max(...forces.arrows.map(({ largest }) => largest));
 
   return (
     <div ref={box} className={className} style={{ ...column, background, ...style }}>
@@ -221,7 +242,18 @@ export function SymAWEViewer({
             palette={palette}
             highlight={highlight}
             onPick={pickNext}
+            segmentColors={spring && forceColors(spring.rows[current], spring.limit, colors)}
           />
+          {forces.arrows
+            .filter(({ key }) => shownForces[key])
+            .map((arrows) => (
+              <ForceArrowsView
+                key={arrows.key}
+                ends={arrowEnds(arrows, current, newtonLength)}
+                color={colors[arrows.key]}
+                span={span}
+              />
+            ))}
           <Grid
             args={[span * 4, span * 4]}
             cellSize={10}
@@ -249,7 +281,7 @@ export function SymAWEViewer({
             </p>
             <div style={{ margin: "0.6rem 0 0" }}>
               {(Object.keys(ROLE_LABELS) as SegmentRole[])
-                .filter((role) => roles.has(role))
+                .filter((role) => roles.has(role) && !spring)
                 .map((role) => (
                   <Swatch key={role} color={colors[role]} label={ROLE_LABELS[role]} />
                 ))}
@@ -278,6 +310,12 @@ export function SymAWEViewer({
             </p>
           </div>
         )}
+        <ForceControls
+          forces={forces}
+          shown={shownForces}
+          palette={colors}
+          onChange={setShownForces}
+        />
         {children}
       </div>
       {lastFrame > 0 && <RunPanels run={run} frame={current} onSeek={seek} />}
