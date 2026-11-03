@@ -16,6 +16,9 @@ import {
 } from "../src/topology";
 import type { Vec3 } from "../src/generated/structure";
 
+/** The V3 PSM flight of 3 s: 61 frames, 44 points, 95 segments, every SysState column. */
+export const V3_RUN = "v3_psm_sim.arrow";
+
 export const EXAMPLES = ["v3_psm_structure", "v3_beam_structure"];
 
 export function fixture(name: string): Uint8Array {

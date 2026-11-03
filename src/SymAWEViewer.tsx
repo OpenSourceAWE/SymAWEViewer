@@ -8,6 +8,7 @@ import {
 import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
 import { framing, resolvePalette, Structure, type Palette } from "./Structure";
+import { RunPanels } from "./TimePanel";
 import {
   anchorPoints,
   nextGroup,
@@ -25,8 +26,10 @@ export interface SymAWEViewerProps {
   data?: ArrayBuffer | Uint8Array;
   /** Passed to `fetch`, e.g. `{ credentials: "include" }`. */
   fetchOptions?: RequestInit;
-  /** Index into the run's frames. */
+  /** Moves the time cursor to this index into the run's frames. */
   frame?: number;
+  /** Called with the frame the time cursor moved to, by the scrubber or a panel. */
+  onFrameChange?: (frame: number) => void;
   background?: string;
   palette?: Partial<Palette>;
   /** Name, counts, connectivity hash and a legend, drawn over the top-left corner. */
@@ -40,6 +43,10 @@ export interface SymAWEViewerProps {
 }
 
 const fill: CSSProperties = { position: "relative", width: "100%", height: "100%" };
+
+const column: CSSProperties = { ...fill, display: "flex", flexDirection: "column" };
+
+const sceneStyle: CSSProperties = { position: "relative", flex: "1 1 0", minHeight: 0 };
 
 const centred: CSSProperties = {
   ...fill,
@@ -88,6 +95,7 @@ export function SymAWEViewer({
   data,
   fetchOptions,
   frame = 0,
+  onFrameChange,
   background = "#07070b",
   palette,
   showOverlay = true,
@@ -100,6 +108,8 @@ export function SymAWEViewer({
   const [run, setRun] = useState<Run | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<PointGroup | null>(null);
+  const [cursor, setCursor] = useState(frame);
+  useEffect(() => setCursor(frame), [frame]);
 
   const latest = useRef({ fetchOptions, onLoad, onError });
   latest.current = { fetchOptions, onLoad, onError };
@@ -132,6 +142,7 @@ export function SymAWEViewer({
     setRun(null);
     setError(null);
     setHighlight(null);
+    setCursor(frame);
 
     if (data) {
       try {
@@ -169,8 +180,9 @@ export function SymAWEViewer({
     );
   }
 
-  const pose = run.frames[Math.min(frame, run.frames.length - 1)];
-  const { centre, span } = framing(pose);
+  const lastFrame = run.frames.length - 1;
+  const current = Math.min(cursor, lastFrame);
+  const { centre, span } = framing(run.frames[0]);
   const meta = run.topology.metadata;
   const colors = resolvePalette(palette);
   const roles = new Set(segmentRoles(run.topology));
@@ -182,86 +194,93 @@ export function SymAWEViewer({
       ? "1 fixed point, the ground anchor"
       : `${anchorCount} fixed points, the ground anchors`;
   const pickNext = (pick: PointPick) =>
-    setHighlight((current) => nextGroup(pick, current));
+    setHighlight((group) => nextGroup(pick, group));
+  const seek = (next: number) => {
+    setCursor(next);
+    onFrameChange?.(next);
+  };
 
   return (
-    <div ref={box} className={className} style={{ ...fill, ...style }}>
-      <Canvas
-        camera={{
-          position: [centre.x + span, centre.y + span * 0.4, centre.z + span],
-          fov: 45,
-          near: 0.1,
-          far: span * 40,
-        }}
-        onPointerMissed={() => setHighlight(null)}
-      >
-        <color attach="background" args={[background]} />
-        <ambientLight intensity={0.9} />
-        <directionalLight position={[1, 2, 1]} intensity={1.5} />
-        <Structure
-          run={run}
-          frame={pose}
-          palette={palette}
-          highlight={highlight}
-          onPick={pickNext}
-        />
-        <Grid
-          args={[span * 4, span * 4]}
-          cellSize={10}
-          sectionSize={50}
-          cellColor="#1b2030"
-          sectionColor="#2b3348"
-          fadeDistance={span * 6}
-          infiniteGrid
-        />
-        <OrbitControls target={centre} makeDefault />
-      </Canvas>
+    <div ref={box} className={className} style={{ ...column, background, ...style }}>
+      <div style={sceneStyle}>
+        <Canvas
+          camera={{
+            position: [centre.x + span, centre.y + span * 0.4, centre.z + span],
+            fov: 45,
+            near: 0.1,
+            far: span * 40,
+          }}
+          onPointerMissed={() => setHighlight(null)}
+        >
+          <color attach="background" args={[background]} />
+          <ambientLight intensity={0.9} />
+          <directionalLight position={[1, 2, 1]} intensity={1.5} />
+          <Structure
+            run={run}
+            frame={run.frames[current]}
+            palette={palette}
+            highlight={highlight}
+            onPick={pickNext}
+          />
+          <Grid
+            args={[span * 4, span * 4]}
+            cellSize={10}
+            sectionSize={50}
+            cellColor="#1b2030"
+            sectionColor="#2b3348"
+            fadeDistance={span * 6}
+            infiniteGrid
+          />
+          <OrbitControls target={centre} makeDefault />
+        </Canvas>
 
-      {showOverlay && (
-        <div style={overlayStyle}>
-          <p style={{ color: "#d7dae1", margin: 0 }}>{meta.name}</p>
-          <p style={{ margin: 0 }}>{meta.note}</p>
-          <p style={{ margin: "0.6rem 0 0" }}>
-            {run.topology.points.data.length} points
-            · {run.topology.segments.data.length} segments
-            · {run.topology.tethers.data.length} line runs
-          </p>
-          <p style={{ margin: 0 }}>
-            {run.frames.length} frame{run.frames.length === 1 ? "" : "s"} · sha{" "}
-            {meta.connectivity_sha.slice(0, 12)}
-          </p>
-          <div style={{ margin: "0.6rem 0 0" }}>
-            {(Object.keys(ROLE_LABELS) as SegmentRole[])
-              .filter((role) => roles.has(role))
-              .map((role) => (
-                <Swatch key={role} color={colors[role]} label={ROLE_LABELS[role]} />
-              ))}
-            {tubeCount > 0 && (
-              <Swatch color={colors.tube} label={`${tubeCount} tubes between bodies`} />
-            )}
-            {faceCount > 0 && (
-              <Swatch
-                color={colors.canopy}
-                glyph="▬"
-                label={`${faceCount} canopy faces`}
-              />
-            )}
-            {anchorCount > 0 && (
-              <Swatch
-                color={colors.anchor}
-                glyph="▲"
-                label={anchorLabel}
-              />
-            )}
+        {showOverlay && (
+          <div style={overlayStyle}>
+            <p style={{ color: "#d7dae1", margin: 0 }}>{meta.name}</p>
+            <p style={{ margin: 0 }}>{meta.note}</p>
+            <p style={{ margin: "0.6rem 0 0" }}>
+              {run.topology.points.data.length} points
+              · {run.topology.segments.data.length} segments
+              · {run.topology.tethers.data.length} line runs
+            </p>
+            <p style={{ margin: 0 }}>
+              {run.frames.length} frame{run.frames.length === 1 ? "" : "s"} · sha{" "}
+              {meta.connectivity_sha.slice(0, 12)}
+            </p>
+            <div style={{ margin: "0.6rem 0 0" }}>
+              {(Object.keys(ROLE_LABELS) as SegmentRole[])
+                .filter((role) => roles.has(role))
+                .map((role) => (
+                  <Swatch key={role} color={colors[role]} label={ROLE_LABELS[role]} />
+                ))}
+              {tubeCount > 0 && (
+                <Swatch color={colors.tube} label={`${tubeCount} tubes between bodies`} />
+              )}
+              {faceCount > 0 && (
+                <Swatch
+                  color={colors.canopy}
+                  glyph="▬"
+                  label={`${faceCount} canopy faces`}
+                />
+              )}
+              {anchorCount > 0 && (
+                <Swatch
+                  color={colors.anchor}
+                  glyph="▲"
+                  label={anchorLabel}
+                />
+              )}
+            </div>
+            <p style={{ margin: "0.6rem 0 0", color: colors.highlight }}>
+              {highlight
+                ? `${highlight.block === "bodies" ? "body" : "station"} ${highlight.name}`
+                : "click a point to highlight its body or station"}
+            </p>
           </div>
-          <p style={{ margin: "0.6rem 0 0", color: colors.highlight }}>
-            {highlight
-              ? `${highlight.block === "bodies" ? "body" : "station"} ${highlight.name}`
-              : "click a point to highlight its body or station"}
-          </p>
-        </div>
-      )}
-      {children}
+        )}
+        {children}
+      </div>
+      {lastFrame > 0 && <RunPanels run={run} frame={current} onSeek={seek} />}
     </div>
   );
 }
