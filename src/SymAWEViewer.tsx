@@ -26,7 +26,7 @@ import {
   type PointPick,
   type SegmentRole,
 } from "./parts";
-import { arrowEnds, runForces } from "./quantities";
+import { arrowEnds, arrowScale, runForces } from "./quantities";
 import { decodeRun, loadRun, type Run } from "./topology";
 
 export interface SymAWEViewerProps {
@@ -75,9 +75,6 @@ const overlayStyle: CSSProperties = {
   font: "12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace",
 };
 
-/** The longest force arrow of a run, as a share of the run's scale. */
-const LONGEST_ARROW_SHARE = 0.06;
-
 const ROLE_LABELS: Record<SegmentRole, string> = {
   power: "tether, reeled by a winch",
   tether: "tether",
@@ -97,6 +94,13 @@ function Swatch({ color, glyph = "━━", label }: SwatchProps) {
       <span style={{ color }}>{glyph}</span> {label}
     </p>
   );
+}
+
+/** What drawing `run` needs that stays the same over its frames. */
+function sceneOf(run: Run) {
+  const forces = runForces(run);
+  const { centre, span } = framing(run.frames[0]);
+  return { forces, centre, span, metresPerNewton: arrowScale(forces, span) };
 }
 
 /**
@@ -124,9 +128,27 @@ export function SymAWEViewer({
   const [cursor, setCursor] = useState(frame);
   useEffect(() => setCursor(frame), [frame]);
   const [shownForces, setShownForces] = useState<ForcesShown>(NO_FORCES_SHOWN);
-  const scene = useMemo(
-    () => run && { forces: runForces(run), ...framing(run.frames[0]) },
-    [run],
+  const scene = useMemo(() => run && sceneOf(run), [run]);
+  const lastFrame = run ? run.frames.length - 1 : 0;
+  const current = Math.min(cursor, lastFrame);
+  const colors = resolvePalette(palette);
+  const { compression, unloaded, tension } = colors;
+  const spring = shownForces.spring ? scene?.forces.spring : undefined;
+  const segmentColors = useMemo(
+    () =>
+      spring &&
+      forceColors(spring.rows[current], spring.limit, { compression, unloaded, tension }),
+    [spring, current, compression, unloaded, tension],
+  );
+  const arrows = useMemo(
+    () =>
+      scene?.forces.arrows
+        .filter(({ key }) => shownForces[key])
+        .map((force) => ({
+          key: force.key,
+          ends: arrowEnds(force, current, scene.metresPerNewton),
+        })) ?? [],
+    [scene, shownForces, current],
   );
 
   const latest = useRef({ fetchOptions, onLoad, onError });
@@ -161,6 +183,7 @@ export function SymAWEViewer({
     setError(null);
     setHighlight(null);
     setCursor(frame);
+    setShownForces(NO_FORCES_SHOWN);
 
     if (data) {
       try {
@@ -198,11 +221,8 @@ export function SymAWEViewer({
     );
   }
 
-  const lastFrame = run.frames.length - 1;
-  const current = Math.min(cursor, lastFrame);
   const { forces, centre, span } = scene;
   const meta = run.topology.metadata;
-  const colors = resolvePalette(palette);
   const roles = new Set(segmentRoles(run.topology));
   const tubeCount = run.topology.tubes.data.length;
   const faceCount = run.topology.canopy_faces.data.length;
@@ -217,9 +237,6 @@ export function SymAWEViewer({
     setCursor(next);
     onFrameChange?.(next);
   };
-  const spring = shownForces.spring ? forces.spring : undefined;
-  const newtonLength =
-    (span * LONGEST_ARROW_SHARE) / Math.max(...forces.arrows.map(({ largest }) => largest));
 
   return (
     <div ref={box} className={className} style={{ ...column, background, ...style }}>
@@ -242,18 +259,11 @@ export function SymAWEViewer({
             palette={palette}
             highlight={highlight}
             onPick={pickNext}
-            segmentColors={spring && forceColors(spring.rows[current], spring.limit, colors)}
+            segmentColors={segmentColors}
           />
-          {forces.arrows
-            .filter(({ key }) => shownForces[key])
-            .map((arrows) => (
-              <ForceArrowsView
-                key={arrows.key}
-                ends={arrowEnds(arrows, current, newtonLength)}
-                color={colors[arrows.key]}
-                span={span}
-              />
-            ))}
+          {arrows.map(({ key, ends }) => (
+            <ForceArrowsView key={key} ends={ends} color={colors[key]} span={span} />
+          ))}
           <Grid
             args={[span * 4, span * 4]}
             cellSize={10}

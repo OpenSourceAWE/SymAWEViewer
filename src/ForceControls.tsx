@@ -13,6 +13,7 @@ export interface ForcesShown {
 /** The forces drawn when a run opens: none, so segments wear their role colours. */
 export const NO_FORCES_SHOWN: ForcesShown = { spring: false, aero: false, drag: false };
 
+/** The forces to offer, which of them are shown, and where a toggle reports the new choice. */
 export interface ForceControlsProps {
   forces: RunForces;
   shown: ForcesShown;

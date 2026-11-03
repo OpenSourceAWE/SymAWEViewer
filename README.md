@@ -51,7 +51,7 @@ run has.
 
 ## Forces
 
-Toggles over the 3D view draw the forces a run carries, at the time cursor, and work on a run of any length. They are all off when a viewer opens, and a force the run does not hold is not offered.
+Toggles over the 3D view draw the forces a run carries, at the time cursor, and work on a run of any length. They are all off when a run opens, and a force the run does not hold is not offered.
 
 - **Spring force** colours each segment by `spring_force` on a diverging scale: compression, zero, tension. Off, the segments wear their role colours again. The scale spans the same force on both sides of zero, and that force is the 99.9th percentile of the run's magnitudes, so a single spike cannot turn the rest of the flight grey; anything beyond it saturates. The legend gives the scale and the range the run really reaches, in N.
 - **Aero and drag force arrows** start at each slot of `aero_force_*` or `drag_force_*` holding a force. All arrows of a run share one length per newton, so they can be compared with each other and across frames, and the legend names the longest of each.
@@ -83,7 +83,9 @@ The same data is yours to draw in your own layout:
 | `RunPanels`, `TimePanel` | the scrubber and panels, and one panel |
 | `runForces(run)` | the spring force and force arrows a run offers |
 | `forceColors(forces, limit, palette)` | one frame's spring forces as segment colours, for `Structure`'s `segmentColors` |
+| `arrowScale(forces, span)` | the metres per newton of a run's arrows, for `arrowEnds` |
 | `arrowEnds(arrows, frame, scale)` | one frame's arrows, for `ForceArrowsView` |
+| `ForceArrowsView` | arrows between `ends` in `color`, as thick as the run's `span` asks |
 | `ForceControls`, `NO_FORCES_SHOWN` | the force toggles with their legends, and all of them off |
 
 For custom chrome, drop `Structure` into your own `Canvas`, with `highlight`

@@ -8,14 +8,14 @@ import {
   forceColors,
   resolvePalette,
 } from "../src/Structure";
-import { arrowEnds, runForces, type RunForces } from "../src/quantities";
+import { arrowEnds, arrowScale, runForces, type RunForces } from "../src/quantities";
 import { columnValues, decodeRun, type Run } from "../src/topology";
+import type { Vec3 } from "../src/generated/structure";
 import { example, fixture, runOf, V3_RUN } from "./fixtures";
 
 const run = decodeRun(fixture(V3_RUN));
 const forces = runForces(run);
 const palette = resolvePalette();
-const POINTS = 44;
 
 /** Each row of list column `name`, as the log holds it. */
 function rows(name: string): Float32Array[] {
@@ -115,14 +115,14 @@ describe("force arrows of the V3 run", () => {
 
   it("draws one arrow per slot holding a force", () => {
     expect(arrowEnds(aero, 30, scale).length / 6).toBe(20);
-    expect(arrowEnds(drag, 30, scale).length / 6).toBe(POINTS);
+    expect(arrowEnds(drag, 30, scale).length / 6).toBe(pointCount);
   });
 
   it("starts each arrow on its point and points it along the logged force", () => {
     const [x, y, z] = ["x", "y", "z"].map((axis) => rows(`drag_force_${axis}`)[30]);
     const ends = arrowEnds(drag, 30, scale);
     const frame = run.frames[30];
-    for (let point = 0; point < POINTS; point++) {
+    for (let point = 0; point < pointCount; point++) {
       const at = point * 6;
       expect(ends[at]).toBeCloseTo(frame.x[point], 3);
       expect(ends[at + 1]).toBeCloseTo(frame.y[point], 3);
@@ -136,6 +136,27 @@ describe("force arrows of the V3 run", () => {
   it("knows the largest force of each over the run [N]", () => {
     expect(aero.largest).toBeCloseTo(179, 0);
     expect(drag.largest).toBeCloseTo(58.3, 0);
+  });
+});
+
+describe("arrows of any run", () => {
+  it("makes the longest arrow of a run the same share of its span", () => {
+    expect(arrowScale(forces, 100) * forces.arrows[0].largest).toBeCloseTo(6, 6);
+  });
+
+  it("gives a run without arrows no scale", () => {
+    expect(arrowScale({ arrows: [] }, 100)).toBe(0);
+  });
+
+  it("draws a force on a slot behind the points from that slot's position", () => {
+    const positions = columnValues<Vec3>(document.points, "pos_ENU");
+    const slots: Vec3[] = [...positions, [1, 2, 3]];
+    const axis = [...filled(pointCount), 10];
+    const behind = decodeRun(
+      runOf(document, slots, { drag_force_x: axis, drag_force_y: axis, drag_force_z: axis }),
+    );
+    const [drag] = runForces(behind).arrows;
+    expect(Array.from(arrowEnds(drag, 0, 0.5))).toEqual([1, 2, 3, 6, 7, 8]);
   });
 });
 

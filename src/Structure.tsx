@@ -222,6 +222,7 @@ function Tubes({ run, frame, color }: { run: Run; frame: Frame; color: string })
   );
 }
 
+/** The arrows one force draws in a frame, and how they look. */
 export interface ForceArrowsViewProps {
   /** Each arrow's start and end, as `arrowEnds` gives them. */
   ends: Float32Array;

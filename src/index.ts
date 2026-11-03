@@ -29,6 +29,7 @@ export {
 } from "./ForceControls";
 export {
   arrowEnds,
+  arrowScale,
   defaultPanels,
   kiteAttitude,
   nearestFrame,

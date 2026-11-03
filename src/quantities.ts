@@ -102,6 +102,9 @@ const AIR_DENSITY = 1.225;
 /** The share of a run's spring forces the colour scale spans; the largest rest saturate. */
 const SPRING_SCALE_SHARE = 0.999;
 
+/** The longest force arrow of a run, as a share of the run's scale. */
+const LONGEST_ARROW_SHARE = 0.06;
+
 /** The columns of a force held per slot of a frame, each drawn as arrows. */
 const ARROW_COLUMNS = [
   { key: "aero", column: "aero_force", label: "aero force arrows" },
@@ -149,6 +152,11 @@ function listRows(run: Run, name: string): ArrayLike<number>[] | undefined {
 function vectorRows(run: Run, names: string[]): ArrayLike<number>[][] | undefined {
   const rows = names.map((name) => listRows(run, name));
   return rows.includes(undefined) ? undefined : (rows as ArrayLike<number>[][]);
+}
+
+/** The x, y and z rows of the per-slot force `column`, or undefined where one is missing. */
+function forceRows(run: Run, column: string): ArrayLike<number>[][] | undefined {
+  return vectorRows(run, XYZ.map((axis) => `${column}_${axis}`));
 }
 
 /** The series column `name` holds: one for a scalar, one per element for a list. */
@@ -269,7 +277,7 @@ function summed(rows: ArrayLike<number>[]): Float64Array {
 
 /** Lift and drag against the apparent wind, L/D, and CL and CD where a canopy gives an area. */
 function aeroQuantities(run: Run): Quantity[] {
-  const forces = vectorRows(run, ["aero_force_x", "aero_force_y", "aero_force_z"]);
+  const forces = forceRows(run, "aero_force");
   const wind = listRows(run, "v_wind_kite");
   const velocity = listRows(run, "vel_kite");
   if (!forces || !wind || !velocity) return [];
@@ -358,11 +366,17 @@ function largestForce([x, y, z]: ArrayLike<number>[][], positions: ArrayLike<num
 export function runForces(run: Run): RunForces {
   const positions = vectorRows(run, ["X", "Y", "Z"])!;
   const arrows = ARROW_COLUMNS.flatMap(({ key, column, label }) => {
-    const force = vectorRows(run, XYZ.map((axis) => `${column}_${axis}`));
+    const force = forceRows(run, column);
     const largest = force ? largestForce(force, positions) : 0;
     return largest > 0 ? [{ key, label, force: force!, positions, largest }] : [];
   });
   return { spring: springForces(run), arrows };
+}
+
+/** Metres per newton giving the longest arrow a fixed share of `span` [m]; 0 without arrows. */
+export function arrowScale({ arrows }: RunForces, span: number): number {
+  if (arrows.length === 0) return 0;
+  return (span * LONGEST_ARROW_SHARE) / Math.max(...arrows.map(({ largest }) => largest));
 }
 
 /**
