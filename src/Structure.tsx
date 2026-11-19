@@ -57,6 +57,8 @@ export interface StructureProps {
   pointSize?: number;
   /** The group whose points are drawn in the highlight color. */
   highlight?: PointGroup | null;
+  /** Draw tubes and anchors flat in their color, without lights. */
+  unlit?: boolean;
   onPick?: (pick: PointPick) => void;
 }
 
@@ -100,8 +102,19 @@ function useBufferAttribute(values: Float32Array) {
   return useMemo(() => new THREE.BufferAttribute(values, 3), [values]);
 }
 
+/** A solid's material in `color`, flat or lit. */
+function SolidMaterial({ color, unlit }: { color: string; unlit: boolean }) {
+  if (unlit) return <meshBasicMaterial color={color} />;
+  return <meshStandardMaterial color={color} roughness={0.6} />;
+}
+
 /** Tubes as cylinders at their diameter, or as lines where they carry none. */
-function Tubes({ run, frame, color }: { run: Run; frame: Frame; color: string }) {
+function Tubes({ run, frame, color, unlit }: {
+  run: Run;
+  frame: Frame;
+  color: string;
+  unlit: boolean;
+}) {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const ends = useMemo(() => tubeEnds(run, frame), [run, frame]);
   const matrices = useMemo(() => tubeMatrices(run, ends), [run, ends]);
@@ -130,7 +143,7 @@ function Tubes({ run, frame, color }: { run: Run; frame: Frame; color: string })
       args={[undefined, undefined, matrices.length]}
     >
       <cylinderGeometry args={[0.5, 0.5, 1, 16]} />
-      <meshStandardMaterial color={color} roughness={0.6} />
+      <SolidMaterial color={color} unlit={unlit} />
     </instancedMesh>
   );
 }
@@ -146,6 +159,7 @@ export function Structure({
   palette,
   pointSize = 1.2,
   highlight,
+  unlit = false,
   onPick,
 }: StructureProps) {
   const raycaster = useThree((state) => state.raycaster);
@@ -197,7 +211,7 @@ export function Structure({
         </bufferGeometry>
         <lineBasicMaterial vertexColors />
       </lineSegments>
-      <Tubes run={run} frame={frame} color={colors.tube} />
+      <Tubes run={run} frame={frame} color={colors.tube} unlit={unlit} />
       {canopy.count > 0 && (
         <mesh key={canopy.count}>
           <bufferGeometry>
@@ -236,7 +250,7 @@ export function Structure({
           rotation={[Math.PI / 2, 0, 0]}
         >
           <coneGeometry args={[anchorHeight / 2, anchorHeight, 24]} />
-          <meshStandardMaterial color={colors.anchor} />
+          <SolidMaterial color={colors.anchor} unlit={unlit} />
         </mesh>
       ))}
     </group>
