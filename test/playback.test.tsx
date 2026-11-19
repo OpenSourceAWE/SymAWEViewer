@@ -71,7 +71,14 @@ describe("FlightReadout", () => {
     expect(lines.map(({ label }) => label)).toEqual(["speed", "height", "force"]);
     expect(lines[2]).toEqual({ label: "force", unit: "kN", value: "0.61" });
     const html = renderToStaticMarkup(
-      <FlightReadout quantities={quantities} times={times} timed frame={60} ink="#505880" muted="#8f95b8" />,
+      <FlightReadout
+        quantities={quantities}
+        times={times}
+        timed
+        frame={60}
+        ink="#505880"
+        muted="#8f95b8"
+      />,
     );
     expect(html).toContain("3.00 s");
     expect(html).toContain(`${valueOf("kite_speed", 60).toFixed(1)} m/s`);
@@ -80,7 +87,8 @@ describe("FlightReadout", () => {
 
   it("leaves out what the run does not carry", () => {
     const columns = run.table.schema.fields.map(({ name }) => name);
-    const bare = { ...run, table: run.table.select(columns.filter((name) => name !== "vel_kite" && name !== "winch_force")) };
+    const kept = columns.filter((name) => name !== "vel_kite" && name !== "winch_force");
+    const bare = { ...run, table: run.table.select(kept) };
     expect(readoutValues(runQuantities(bare), 0).map(({ label }) => label)).toEqual(["height"]);
   });
 });

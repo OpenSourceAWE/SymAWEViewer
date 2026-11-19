@@ -39,7 +39,7 @@ export function resolveScene(theme?: Partial<SceneTheme>): SceneTheme {
   return { ...DEFAULT_SCENE, ...theme };
 }
 
-/** The point at `frame` of a flat `[x, y, z, ...]` path in the simulation frame, in three.js axes. */
+/** The point at `frame` of a flat `[x, y, z, ...]` simulation-frame path, in three.js axes. */
 export function pathPoint(path: Float32Array, frame: number): THREE.Vector3 {
   return new THREE.Vector3(path[frame * 3], path[frame * 3 + 2], -path[frame * 3 + 1]);
 }
