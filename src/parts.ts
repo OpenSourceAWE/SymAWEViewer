@@ -164,6 +164,33 @@ export function bodyPositions(run: Run, frame: Frame): Float32Array {
   return out;
 }
 
+/** The indices of the kite's points: those of a spanwise station or fixed to a body. */
+export function kitePoints(run: Run): number[] {
+  const members = new Set<number>();
+  for (const block of ["spanwise_stations", "bodies"] as const) {
+    for (const group of pointGroups(run, block).values()) group.forEach((i) => members.add(i));
+  }
+  return [...members].sort((a, b) => a - b);
+}
+
+/**
+ * Flat `[x, y, z, ...]` position of the kite in every frame, the mean of its points;
+ * empty for a run with no station or body.
+ */
+export function kitePath(run: Run): Float32Array {
+  const members = kitePoints(run);
+  if (members.length === 0) return new Float32Array(0);
+  const path = new Float32Array(run.frames.length * 3);
+  run.frames.forEach((frame, i) => {
+    for (const point of members) {
+      path[i * 3] += frame.x[point] / members.length;
+      path[i * 3 + 1] += frame.y[point] / members.length;
+      path[i * 3 + 2] += frame.z[point] / members.length;
+    }
+  });
+  return path;
+}
+
 /** Flat `[x, y, z, ...]` positions in `frame` of each tube's two bodies, in row order. */
 export function tubeEnds(run: Run, frame: Frame): Float32Array {
   const placed = bodyPositions(run, frame);

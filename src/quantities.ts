@@ -1,4 +1,5 @@
 import { DataType } from "apache-arrow";
+import { kitePath } from "./parts";
 import { canopyPositions, type Run } from "./topology";
 
 /** One number per frame of a run, ready to plot. */
@@ -189,6 +190,22 @@ function attitudeQuantities(run: Run): Quantity[] {
   ];
 }
 
+/** The kite's speed, the length of `vel_kite`, and its height, that of its mean point. */
+function flightQuantities(run: Run): Quantity[] {
+  const quantities: Quantity[] = [];
+  const velocity = listRows(run, "vel_kite");
+  if (velocity) {
+    const speed = Float64Array.from(velocity, (row) => Math.hypot(row[0], row[1], row[2]));
+    quantities.push(derived("kite_speed", "kite speed", "m/s", speed));
+  }
+  const path = kitePath(run);
+  if (path.length > 0) {
+    const height = Float64Array.from(run.frames, (_, i) => path[i * 3 + 2]);
+    quantities.push(derived("height", "height", "m", height));
+  }
+  return quantities;
+}
+
 /** Twice the area vector of the triangle at offset `i` of flat `corners`. */
 function triangleNormal(corners: Float32Array, i: number): number[] {
   const edge = (corner: number) =>
@@ -264,6 +281,7 @@ function aeroQuantities(run: Run): Quantity[] {
 export function runQuantities(run: Run): Quantity[] {
   const quantities = [
     ...COLUMNS.flatMap((spec) => fromColumn(run, spec)),
+    ...flightQuantities(run),
     ...attitudeQuantities(run),
     ...aeroQuantities(run),
     ...genericVariables(run),
