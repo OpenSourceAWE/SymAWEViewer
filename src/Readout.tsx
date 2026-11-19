@@ -28,7 +28,7 @@ export function readoutValues(quantities: Quantity[], frame: number) {
 
 const readoutStyle: CSSProperties = {
   position: "absolute",
-  top: "1.5rem",
+  bottom: "1rem",
   right: "1.5rem",
   margin: 0,
   pointerEvents: "none",

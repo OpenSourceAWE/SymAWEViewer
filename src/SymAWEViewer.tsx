@@ -201,7 +201,7 @@ function Transport({ playing, onPlaying, speed, onSpeed, follow, onFollow, ink }
           type="button"
           aria-pressed={follow}
           onClick={() => onFollow(!follow)}
-          style={{ ...plainButton, color: follow ? ink : undefined }}
+          style={{ ...plainButton, color: follow ? ink : "inherit" }}
         >
           {follow ? "◉" : "○"} follow kite
         </button>
