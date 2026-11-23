@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { Palette } from "./Structure";
-import { INK, MUTED, monospace } from "./TimePanel";
+import { CHROME, monospace } from "./chrome";
 import type { RunForces, SpringForces } from "./quantities";
 
 /** Which of a run's forces are drawn. */
@@ -28,16 +28,16 @@ const boxStyle: CSSProperties = {
   maxWidth: "calc(100% - 1.5rem)",
   padding: "0.4rem 0.6rem",
   borderRadius: 4,
-  background: "rgba(7, 7, 11, 0.8)",
-  color: MUTED,
-  font: monospace,
+  background: `${CHROME.background}cc`,
+  color: CHROME.muted,
+  font: monospace(12, 1.5),
 };
 
 const scaleEndsStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: "0.75rem",
-  color: INK,
+  color: CHROME.ink,
 };
 
 const newtons = (force: number) => `${Math.round(force)} N`;
