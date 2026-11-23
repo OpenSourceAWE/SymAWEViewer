@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
+import { CHROME } from "./chrome";
 import { runQuantities } from "./quantities";
 import {
   barStyle,
   formatValue,
   gridStyle,
-  INK,
   MARGIN,
-  MUTED,
   niceTicks,
   PanelAxes,
   plotScales,
@@ -132,8 +131,8 @@ function SweepPanel({ quantity, points, axis, onOpen }: SweepPanelProps) {
     <div ref={box}>
       <div style={barStyle}>
         <span>
-          <span style={{ color: INK }}>{quantity.label}</span> [{quantity.unit}] against{" "}
-          <span style={{ color: INK }}>{axis}</span>
+          <span style={{ color: CHROME.ink }}>{quantity.label}</span> [{quantity.unit}] against{" "}
+          <span style={{ color: CHROME.ink }}>{axis}</span>
         </span>
       </div>
       {curves.length > 1 && (
@@ -203,7 +202,7 @@ export function SweepView({ points, onOpen }: SweepViewProps) {
           aria-label="quantity"
           value={quantity.id}
           onChange={(event) => setChosen(event.target.value)}
-          style={{ background: "transparent", color: MUTED, font: "inherit" }}
+          style={{ background: "transparent", color: CHROME.muted, font: "inherit" }}
         >
           {quantities.map(({ id, label, unit }) => (
             <option key={id} value={id}>
