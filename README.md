@@ -80,6 +80,46 @@ and `onPick` for the groups:
 import { framing, loadRun, Structure } from "@symawe/viewer";
 ```
 
+## Playing a run
+
+A run of more than one frame starts playing as soon as it loads, at real time, and loops. Play/pause, the speed list (0.25× to 4×), Space and the scrubber all move the same time cursor. Space is ignored while a text field, list or button has the key. A visitor whose system asks for reduced motion gets the run paused on its first frame.
+
+Behind the kite runs a trail of the last 3 s of its path, the mean of its wing and body points. A seek clears it, and it grows again from there.
+
+The camera opens on the ground station and the kite together and orbits round the system. "follow kite" carries the camera along with the kite at the same offset, so it stays in view while you still orbit round it. On a touch screen the canvas passes vertical swipes to the page so it never traps scrolling, and orbits only where the pointer is fine, such as a mouse.
+
+A readout in the corner gives kite speed [m/s], height [m], winch force [kN] and time at the cursor, each only where the run carries it. Height, the kite's mean z, is also a quantity the panels can show.
+
+`panels` sets how the 2D panels start: `"open"` (the default), `"collapsed"` behind a toggle above the scrubber, or `"hidden"` for the scrubber and play controls alone, which leaves a phone screen to the 3D view.
+
+`theme` sets the scene around the structure, over the dark default; `background` is also the fog colour. Each field is optional:
+
+| Field | What it sets |
+| --- | --- |
+| `ground` | a flat ground plane at zero height in this colour, or `null` for none |
+| `gridCell`, `gridSection` | the 10 m and 50 m grid lines |
+| `fog` | `[near, far]` distances [m] from the camera over which the background fades in, or `null` |
+| `trail` | the kite's trail |
+| `unlit` | `true` draws tubes and anchors flat in their colour, without lights |
+| `ink`, `muted` | text and controls, and secondary text and axes |
+
+A light paper scene, with a kite drawn in one ink colour:
+
+```tsx
+const ink = "#505880";
+
+<SymAWEViewer
+  src="/sim/v3_psm_sim.arrow"
+  background="#d6d6e4"
+  palette={{ power: ink, tether: ink, pulley: ink, bridle: ink, tube: ink, canopy: ink, point: ink, anchor: ink }}
+  theme={{ ground: "#ecdfc0", gridCell: "#e2d3aa", gridSection: "#8f95b8", fog: [600, 1800],
+           trail: "#e06d2a", unlit: true, ink, muted: "#7b80a0" }}
+  panels="collapsed"
+/>
+```
+
+`DEFAULT_SCENE` and `resolveScene(theme)` give the scene the viewer draws. `kitePath(run)` gives the kite's mean position per frame and `kitePoints(run)` the points it averages. `advanceTime`, `trailStart`, `SPEEDS` and `TRAIL_SECONDS` are the playback rules, for a host driving its own clock through `frame`.
+
 ## Peer dependencies
 
 `react`, `react-dom`, `three`, `@react-three/fiber` and `@react-three/drei` are

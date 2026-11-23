@@ -5,6 +5,7 @@ import {
   useState,
   type CSSProperties,
   type PointerEvent,
+  type ReactNode,
 } from "react";
 import {
   defaultPanels,
@@ -13,8 +14,9 @@ import {
   runTimes,
   type Quantity,
 } from "./quantities";
+import { monospace, SERIES_COLORS } from "./chrome";
+import { DEFAULT_SCENE, type SceneTheme } from "./Scene";
 import type { Run } from "./topology";
-import { CHROME, monospace, SERIES_COLORS } from "./chrome";
 
 const seriesColor = (line: number) => SERIES_COLORS[line % SERIES_COLORS.length];
 
@@ -27,7 +29,6 @@ const stripStyle: CSSProperties = {
   maxHeight: "45%",
   overflowY: "auto",
   padding: "0.5rem 0.75rem",
-  color: CHROME.muted,
   font: monospace(12, 1.5),
 };
 
@@ -37,15 +38,32 @@ const gridStyle: CSSProperties = {
   gap: "0.5rem 0.75rem",
 };
 
-const removeStyle: CSSProperties = {
+/** A borderless button in the text colour around it. */
+export const plainButton: CSSProperties = {
   background: "none",
   border: 0,
-  color: CHROME.muted,
+  padding: 0,
+  color: "inherit",
   cursor: "pointer",
   font: "inherit",
 };
 
-const barStyle: CSSProperties = { display: "flex", alignItems: "center", gap: "0.75rem" };
+/** A drop-down list in the text colour around it. */
+export const plainSelect: CSSProperties = {
+  background: "transparent",
+  color: "inherit",
+  font: "inherit",
+};
+
+const barStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  gap: "0.5rem 0.75rem",
+};
+
+/** The colours of text and axes. */
+type Ink = Pick<SceneTheme, "ink" | "muted">;
 
 /** Round axis ticks inside `min..max`, at most about `count + 1` of them. */
 export function niceTicks(min: number, max: number, count: number): number[] {
@@ -127,9 +145,10 @@ function useWidth() {
 }
 
 /** The labelled value of each line at frame `read`, the legend of a panel. */
-function PanelReadout({ quantities, read, onRemove }: {
+function PanelReadout({ quantities, read, ink, onRemove }: {
   quantities: Quantity[];
   read: number;
+  ink: string;
   onRemove?: () => void;
 }) {
   return (
@@ -138,7 +157,7 @@ function PanelReadout({ quantities, read, onRemove }: {
         {quantities.map((quantity, line) => (
           <span key={quantity.id} style={{ marginRight: "0.75rem", whiteSpace: "nowrap" }}>
             {quantities.length > 1 && <span style={{ color: seriesColor(line) }}>━ </span>}
-            <span style={{ color: CHROME.ink }}>{quantity.label}</span>{" "}
+            <span style={{ color: ink }}>{quantity.label}</span>{" "}
             {formatValue(quantity.values[read])}
           </span>
         ))}
@@ -149,7 +168,7 @@ function PanelReadout({ quantities, read, onRemove }: {
           type="button"
           aria-label={`remove ${quantities.map(({ label }) => label).join(", ")}`}
           onClick={onRemove}
-          style={removeStyle}
+          style={plainButton}
         >
           ×
         </button>
@@ -159,25 +178,27 @@ function PanelReadout({ quantities, read, onRemove }: {
 }
 
 /** Horizontal gridlines with their values, and the time ticks along the bottom. */
-function PanelAxes({ valueTicks, timeTicks, x, y, right }: {
+function PanelAxes({ valueTicks, timeTicks, x, y, right, muted }: {
   valueTicks: number[];
   timeTicks: number[];
   x: (time: number) => number;
   y: (value: number) => number;
   right: number;
+  muted: string;
 }) {
   return (
     <>
       {valueTicks.map((tick) => (
         <g key={tick}>
-          <line x1={MARGIN.left} x2={right} y1={y(tick)} y2={y(tick)} stroke={CHROME.grid} />
-          <text
-            x={MARGIN.left - 4}
-            y={y(tick) + 3}
-            textAnchor="end"
-            fontSize={10}
-            fill={CHROME.muted}
-          >
+          <line
+            x1={MARGIN.left}
+            x2={right}
+            y1={y(tick)}
+            y2={y(tick)}
+            stroke={muted}
+            strokeOpacity={0.25}
+          />
+          <text x={MARGIN.left - 4} y={y(tick) + 3} textAnchor="end" fontSize={10} fill={muted}>
             {formatValue(tick)}
           </text>
         </g>
@@ -189,7 +210,7 @@ function PanelAxes({ valueTicks, timeTicks, x, y, right }: {
           y={PLOT_HEIGHT - 5}
           textAnchor="middle"
           fontSize={10}
-          fill={CHROME.muted}
+          fill={muted}
         >
           {formatValue(tick)}
         </text>
@@ -206,10 +227,19 @@ export interface TimePanelProps {
   frame: number;
   onSeek: (frame: number) => void;
   onRemove?: () => void;
+  /** Colours of the text and the axes. */
+  theme?: Ink;
 }
 
 /** One 2D plot over time: click or drag to seek, hover to read a frame off it. */
-export function TimePanel({ quantities, times, frame, onSeek, onRemove }: TimePanelProps) {
+export function TimePanel({
+  quantities,
+  times,
+  frame,
+  onSeek,
+  onRemove,
+  theme: { ink, muted } = DEFAULT_SCENE,
+}: TimePanelProps) {
   const [box, width] = useWidth();
   const [hovered, setHovered] = useState<number | null>(null);
 
@@ -238,7 +268,7 @@ export function TimePanel({ quantities, times, frame, onSeek, onRemove }: TimePa
 
   return (
     <div ref={box}>
-      <PanelReadout quantities={quantities} read={hovered ?? frame} onRemove={onRemove} />
+      <PanelReadout quantities={quantities} read={hovered ?? frame} ink={ink} onRemove={onRemove} />
       <svg
         width={width}
         height={PLOT_HEIGHT}
@@ -260,6 +290,7 @@ export function TimePanel({ quantities, times, frame, onSeek, onRemove }: TimePa
           x={x}
           y={y}
           right={width - MARGIN.right}
+          muted={muted}
         />
         {paths.map((path, line) => (
           <path
@@ -278,7 +309,7 @@ export function TimePanel({ quantities, times, frame, onSeek, onRemove }: TimePa
             x2={x(times[hovered])}
             y1={MARGIN.top}
             y2={bottom}
-            stroke={CHROME.muted}
+            stroke={muted}
             strokeDasharray="2 3"
           />
         )}
@@ -288,17 +319,25 @@ export function TimePanel({ quantities, times, frame, onSeek, onRemove }: TimePa
           x2={x(times[frame])}
           y1={MARGIN.top}
           y2={bottom}
-          stroke={CHROME.cursor}
+          stroke={ink}
         />
       </svg>
     </div>
   );
 }
 
+/** Whether the 2D panels show, start folded away behind a toggle, or are left out. */
+export type PanelsMode = "open" | "collapsed" | "hidden";
+
 export interface RunPanelsProps {
   run: Run;
   frame: number;
   onSeek: (frame: number) => void;
+  /** Controls drawn before the scrubber, such as play and pause. */
+  controls?: ReactNode;
+  panels?: PanelsMode;
+  /** Colours of the text and the axes. */
+  theme?: Ink;
 }
 
 /** The panels someone chose on `run`, each a list of quantity ids sharing an axis. */
@@ -317,10 +356,18 @@ export function panelsOfRun(
 }
 
 /** The scrubber and the 2D panels of a run, chosen from the columns it carries. */
-export function RunPanels({ run, frame, onSeek }: RunPanelsProps) {
+export function RunPanels({
+  run,
+  frame,
+  onSeek,
+  controls,
+  panels: mode = "open",
+  theme = DEFAULT_SCENE,
+}: RunPanelsProps) {
   const quantities = useMemo(() => runQuantities(run), [run]);
   const times = useMemo(() => runTimes(run), [run]);
   const [choice, setChoice] = useState<PanelChoice | null>(null);
+  const [open, setOpen] = useState(mode === "open");
   const panels = useMemo(() => panelsOfRun(choice, run, quantities), [choice, run, quantities]);
   const lines = useMemo(() => {
     const byId = new Map(quantities.map((quantity) => [quantity.id, quantity]));
@@ -328,10 +375,12 @@ export function RunPanels({ run, frame, onSeek }: RunPanelsProps) {
   }, [panels, quantities]);
   const cursor = Math.min(frame, times.length - 1);
   const shown = new Set(panels.flat());
+  const showPanels = mode !== "hidden" && open;
 
   return (
-    <div style={stripStyle}>
+    <div style={{ ...stripStyle, color: theme.muted }}>
       <div style={barStyle}>
+        {controls}
         <input
           type="range"
           aria-label="time"
@@ -339,48 +388,58 @@ export function RunPanels({ run, frame, onSeek }: RunPanelsProps) {
           max={times.length - 1}
           value={cursor}
           onChange={(event) => onSeek(Number(event.target.value))}
-          style={{ flex: 1, minWidth: 0, accentColor: CHROME.cursor }}
+          style={{ flex: "1 1 8rem", minWidth: 0, accentColor: theme.ink }}
         />
-        <span style={{ color: CHROME.ink, whiteSpace: "nowrap" }}>
+        <span style={{ color: theme.ink, whiteSpace: "nowrap" }}>
           {run.table.getChild("time") ? `${times[cursor].toFixed(2)} s` : `frame ${cursor}`}
         </span>
-        <select
-          aria-label="add a panel"
-          value=""
-          onChange={(event) => setChoice({ run, panels: [...panels, [event.target.value]] })}
-          style={{
-            maxWidth: "9rem",
-            background: "transparent",
-            color: CHROME.muted,
-            font: "inherit",
-          }}
-        >
-          <option value="" disabled>
-            add a panel…
-          </option>
-          {quantities
-            .filter(({ id }) => !shown.has(id))
-            .map(({ id, label, unit }) => (
-              <option key={id} value={id}>
-                {label} [{unit}]
-              </option>
-            ))}
-        </select>
+        {mode !== "hidden" && (
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+            style={plainButton}
+          >
+            {open ? "▾" : "▸"} panels
+          </button>
+        )}
+        {showPanels && (
+          <select
+            aria-label="add a panel"
+            value=""
+            onChange={(event) => setChoice({ run, panels: [...panels, [event.target.value]] })}
+            style={{ ...plainSelect, maxWidth: "9rem" }}
+          >
+            <option value="" disabled>
+              add a panel…
+            </option>
+            {quantities
+              .filter(({ id }) => !shown.has(id))
+              .map(({ id, label, unit }) => (
+                <option key={id} value={id}>
+                  {label} [{unit}]
+                </option>
+              ))}
+          </select>
+        )}
       </div>
-      <div style={gridStyle}>
-        {panels.map((panel, i) => (
-          <TimePanel
-            key={panel.join()}
-            quantities={lines[i]}
-            times={times}
-            frame={cursor}
-            onSeek={onSeek}
-            onRemove={() =>
-              setChoice({ run, panels: panels.filter((other) => other !== panel) })
-            }
-          />
-        ))}
-      </div>
+      {showPanels && (
+        <div style={{ ...gridStyle, marginTop: "0.5rem" }}>
+          {panels.map((panel, i) => (
+            <TimePanel
+              key={panel.join()}
+              quantities={lines[i]}
+              times={times}
+              frame={cursor}
+              onSeek={onSeek}
+              onRemove={() =>
+                setChoice({ run, panels: panels.filter((other) => other !== panel) })
+              }
+              theme={theme}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

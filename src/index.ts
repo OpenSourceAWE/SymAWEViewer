@@ -11,6 +11,8 @@ export {
 export {
   anchorPoints,
   bodyPositions,
+  kitePath,
+  kitePoints,
   pointGroups,
   segmentRoles,
   type PointGroup,
@@ -26,7 +28,15 @@ export {
   runTimes,
   type Quantity,
 } from "./quantities";
-export { RunPanels, TimePanel, type RunPanelsProps, type TimePanelProps } from "./TimePanel";
+export {
+  RunPanels,
+  TimePanel,
+  type PanelsMode,
+  type RunPanelsProps,
+  type TimePanelProps,
+} from "./TimePanel";
+export { DEFAULT_SCENE, resolveScene, type SceneTheme } from "./Scene";
+export { advanceTime, SPEEDS, TRAIL_SECONDS, trailStart } from "./playback";
 export {
   AWESIO_VERSION,
   canopyPositions,

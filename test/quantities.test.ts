@@ -71,9 +71,9 @@ describe("runQuantities", () => {
     expect(quantity("var_15").label).toBe("var_15");
   });
 
-  it("has no quantity at all for a run of positions only", () => {
+  it("has only the kite's height for a run of positions only", () => {
     const positionsOnly = decodeRun(runOf(example("v3_psm_structure")));
-    expect(runQuantities(positionsOnly)).toEqual([]);
+    expect(runQuantities(positionsOnly).map(({ id }) => id)).toEqual(["height"]);
   });
 });
 
