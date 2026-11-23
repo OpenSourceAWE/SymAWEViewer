@@ -18,16 +18,25 @@ import {
   type Palette,
 } from "./Structure";
 import { CHROME, monospace } from "./chrome";
-import { RunPanels } from "./TimePanel";
+import { Inspector, INSPECTOR_WIDTH } from "./Inspector";
+import { panelsOfRun, RunPanels, type PanelChoice } from "./TimePanel";
 import {
   anchorPoints,
   nextGroup,
+  ROLE_LABELS,
   segmentRoles,
+  type Part,
   type PointGroup,
   type PointPick,
   type SegmentRole,
 } from "./parts";
-import { arrowEnds, arrowScale, runForces } from "./quantities";
+import {
+  arrowEnds,
+  arrowScale,
+  partQuantities,
+  runForces,
+  runQuantities,
+} from "./quantities";
 import { decodeRun, loadRun, type Run } from "./topology";
 
 export interface SymAWEViewerProps {
@@ -71,16 +80,10 @@ const overlayStyle: CSSProperties = {
   position: "absolute",
   top: "1.5rem",
   left: "1.5rem",
+  maxWidth: `calc(100% - ${INSPECTOR_WIDTH} - 3.5rem)`,
   pointerEvents: "none",
   color: CHROME.muted,
   font: monospace(12, 1.7),
-};
-
-const ROLE_LABELS: Record<SegmentRole, string> = {
-  power: "tether, reeled by a winch",
-  tether: "tether",
-  pulley: "bridle over a pulley",
-  bridle: "fixed bridle",
 };
 
 interface SwatchProps {
@@ -101,7 +104,13 @@ function Swatch({ color, glyph = "━━", label }: SwatchProps) {
 function sceneOf(run: Run) {
   const forces = runForces(run);
   const { centre, span } = framing(run.frames[0]);
-  return { forces, centre, span, metresPerNewton: arrowScale(forces, span) };
+  return {
+    forces,
+    centre,
+    span,
+    metresPerNewton: arrowScale(forces, span),
+    quantities: runQuantities(run),
+  };
 }
 
 /**
@@ -129,7 +138,13 @@ export function SymAWEViewer({
   const [cursor, setCursor] = useState(frame);
   useEffect(() => setCursor(frame), [frame]);
   const [shownForces, setShownForces] = useState<ForcesShown>(NO_FORCES_SHOWN);
+  const [selected, setSelected] = useState<Part | null>(null);
+  const [panelChoice, setPanelChoice] = useState<PanelChoice | null>(null);
   const scene = useMemo(() => run && sceneOf(run), [run]);
+  const selectedQuantities = useMemo(
+    () => (run && selected ? partQuantities(run, selected) : []),
+    [run, selected],
+  );
   const lastFrame = run ? run.frames.length - 1 : 0;
   const current = Math.min(cursor, lastFrame);
   const colors = resolvePalette(palette);
@@ -183,6 +198,7 @@ export function SymAWEViewer({
     setRun(null);
     setError(null);
     setHighlight(null);
+    setSelected(null);
     setCursor(frame);
     setShownForces(NO_FORCES_SHOWN);
 
@@ -222,7 +238,9 @@ export function SymAWEViewer({
     );
   }
 
-  const { forces, centre, span } = scene;
+  const { forces, centre, span, quantities } = scene;
+  const panels = panelsOfRun(panelChoice, run, quantities);
+  const setPanels = (next: string[][]) => setPanelChoice({ run, panels: next });
   const meta = run.topology.metadata;
   const roles = new Set(segmentRoles(run.topology));
   const tubeCount = run.topology.tubes.data.length;
@@ -249,7 +267,10 @@ export function SymAWEViewer({
             near: 0.1,
             far: span * 40,
           }}
-          onPointerMissed={() => setHighlight(null)}
+          onPointerMissed={() => {
+            setHighlight(null);
+            setSelected(null);
+          }}
         >
           <color attach="background" args={[background]} />
           <ambientLight intensity={0.9} />
@@ -261,6 +282,8 @@ export function SymAWEViewer({
             highlight={highlight}
             onPick={pickNext}
             segmentColors={segmentColors}
+            selected={selected}
+            onSelect={setSelected}
           />
           {arrows.map(({ key, ends }) => (
             <ForceArrowsView key={key} ends={ends} color={colors[key]} span={span} />
@@ -317,7 +340,7 @@ export function SymAWEViewer({
             <p style={{ margin: "0.6rem 0 0", color: colors.highlight }}>
               {highlight
                 ? `${highlight.block === "bodies" ? "body" : "station"} ${highlight.name}`
-                : "click a point to highlight its body or station"}
+                : "click a point, segment, anchor or wing to inspect it"}
             </p>
           </div>
         )}
@@ -327,9 +350,30 @@ export function SymAWEViewer({
           palette={colors}
           onChange={setShownForces}
         />
+        {selected && (
+          <Inspector
+            run={run}
+            part={selected}
+            quantities={selectedQuantities}
+            frame={current}
+            pinned={new Set(panels.flat())}
+            onPin={lastFrame > 0 ? (id) => setPanels([...panels, [id]]) : undefined}
+            onSelect={setSelected}
+            onClose={() => setSelected(null)}
+          />
+        )}
         {children}
       </div>
-      {lastFrame > 0 && <RunPanels run={run} frame={current} onSeek={seek} />}
+      {lastFrame > 0 && (
+        <RunPanels
+          run={run}
+          quantities={quantities}
+          frame={current}
+          onSeek={seek}
+          panels={panels}
+          onPanelsChange={setPanels}
+        />
+      )}
     </div>
   );
 }

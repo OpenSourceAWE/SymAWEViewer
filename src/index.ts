@@ -11,11 +11,19 @@ export {
   type Palette,
   type StructureProps,
 } from "./Structure";
+export { Inspector, type InspectorProps } from "./Inspector";
 export {
   anchorPoints,
   bodyPositions,
+  partFacts,
+  partPoints,
+  partSegments,
   pointGroups,
+  ROLE_LABELS,
   segmentRoles,
+  type Part,
+  type PartFact,
+  type PartKind,
   type PointGroup,
   type PointPick,
   type PointGroupBlock,
@@ -31,8 +39,12 @@ export {
   arrowEnds,
   arrowScale,
   defaultPanels,
+  findQuantity,
   kiteAttitude,
   nearestFrame,
+  partQuantities,
+  quantitiesCsv,
+  quantityLabel,
   runForces,
   runQuantities,
   runTimes,
@@ -41,7 +53,14 @@ export {
   type RunForces,
   type SpringForces,
 } from "./quantities";
-export { RunPanels, TimePanel, type RunPanelsProps, type TimePanelProps } from "./TimePanel";
+export {
+  panelsOfRun,
+  RunPanels,
+  TimePanel,
+  type PanelChoice,
+  type RunPanelsProps,
+  type TimePanelProps,
+} from "./TimePanel";
 export {
   AWESIO_VERSION,
   canopyPositions,
@@ -53,6 +72,7 @@ export {
   optionalColumnValues,
   pointPositions,
   segmentPositions,
+  wingOriginSlots,
   type Frame,
   type Run,
   type StructureDocument,

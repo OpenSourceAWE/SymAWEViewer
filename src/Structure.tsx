@@ -3,16 +3,20 @@ import { useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   anchorPoints,
+  partPoints,
+  partSegments,
   pointGroups,
   pointPick,
   segmentRoles,
   tubeEnds,
+  type Part,
   type PointGroup,
   type PointPick,
   type SegmentRole,
 } from "./parts";
 import {
   canopyPositions,
+  columnValues,
   optionalColumnValues,
   pointPositions,
   segmentPositions,
@@ -72,6 +76,10 @@ export interface StructureProps {
   onPick?: (pick: PointPick) => void;
   /** Flat `[r, g, b, ...]` for each segment's two ends, in place of its role's color. */
   segmentColors?: Float32Array;
+  /** The part drawn in the highlight color. */
+  selected?: Part | null;
+  /** Called with the point, segment, wing or winch under a click. */
+  onSelect?: (part: Part) => void;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -97,11 +105,20 @@ function spanMatrix(start: THREE.Vector3, end: THREE.Vector3, diameter: number):
 export function tubeMatrices(run: Run, ends: Float32Array): THREE.Matrix4[] {
   const diameters = optionalColumnValues<number>(run.topology.tubes, "diameter");
   if (!diameters) return [];
-  return diameters.map((diameter, i) =>
+  return pairMatrices(ends, diameters.map((_, i) => i), (i) => diameters[i]);
+}
+
+/** A matrix per pair `rows` of flat `ends` placing a unit cylinder `diameter` wide between them. */
+function pairMatrices(
+  ends: Float32Array,
+  rows: number[],
+  diameter: (row: number) => number,
+): THREE.Matrix4[] {
+  return rows.map((row) =>
     spanMatrix(
-      new THREE.Vector3().fromArray(ends, i * 6),
-      new THREE.Vector3().fromArray(ends, i * 6 + 3),
-      diameter,
+      new THREE.Vector3().fromArray(ends, row * 6),
+      new THREE.Vector3().fromArray(ends, row * 6 + 3),
+      diameter(row),
     ),
   );
 }
@@ -172,6 +189,16 @@ function roleColors(
     color.toArray(out, i * 6 + 3);
   });
   return out;
+}
+
+/** The part a click on point `index` selects: the winch it holds, else the point. */
+function pointPart(run: Run, index: number): Part {
+  const name = columnValues<string>(run.topology.points, "name")[index];
+  const { winches } = run.topology;
+  const winch = columnValues<string>(winches, "winch_point").indexOf(name);
+  return winch < 0
+    ? { kind: "point", name }
+    : { kind: "winch", name: columnValues<string>(winches, "name")[winch] };
 }
 
 function useBufferAttribute(values: Float32Array) {
@@ -252,9 +279,10 @@ export function ForceArrowsView({ ends, color, span }: ForceArrowsViewProps) {
 }
 
 /**
- * The structure, already rotated into three.js axes: segments colored by role or
- * by `segmentColors`, tubes, the canopy faces, points, and a cone on each fixed point.
- * Render it inside your own `Canvas` when you want custom chrome.
+ * The structure, already rotated into three.js axes: segments colored by role or by
+ * `segmentColors`, tubes, the canopy faces, points, a cone on each fixed point and a
+ * marker on each wing origin, with `selected` in the highlight color. Render it
+ * inside your own `Canvas` when you want custom chrome.
  */
 export function Structure({
   run,
@@ -264,11 +292,15 @@ export function Structure({
   highlight,
   onPick,
   segmentColors,
+  selected,
+  onSelect,
 }: StructureProps) {
+  const anchorHeight = framing(frame).span / 40;
   const raycaster = useThree((state) => state.raycaster);
   useEffect(() => {
     raycaster.params.Points.threshold = pointSize / 2;
-  }, [raycaster, pointSize]);
+    raycaster.params.Line.threshold = anchorHeight / 2;
+  }, [raycaster, pointSize, anchorHeight]);
 
   const colors = resolvePalette(palette);
   const { power, tether, pulley, bridle } = colors;
@@ -281,12 +313,27 @@ export function Structure({
     () => roleColors(roles, { power, tether, pulley, bridle }),
     [roles, power, tether, pulley, bridle],
   );
+  const selectedSegments = useMemo(
+    () => (selected ? partSegments(run, selected) : []),
+    [run, selected?.kind, selected?.name],
+  );
   const lineColors = useBufferAttribute(segmentColors ?? byRole);
+  const selectedMatrices = useMemo(
+    () => pairMatrices(segments.array as Float32Array, selectedSegments, () => anchorHeight / 10),
+    [segments, selectedSegments, anchorHeight],
+  );
 
   const points = useBufferAttribute(useMemo(() => pointPositions(frame), [frame]));
+  const selectedPoints = useMemo(
+    () => (selected ? partPoints(run, selected) : []),
+    [run, selected?.kind, selected?.name],
+  );
   const lit = useMemo(
-    () => (highlight ? pointGroups(run, highlight.block).get(highlight.name) ?? [] : []),
-    [run, highlight?.block, highlight?.name],
+    () => [
+      ...(highlight ? pointGroups(run, highlight.block).get(highlight.name) ?? [] : []),
+      ...selectedPoints,
+    ],
+    [run, highlight?.block, highlight?.name, selectedPoints],
   );
   const litPoints = useBufferAttribute(
     useMemo(() => pointPositions(frame, lit), [frame, lit]),
@@ -296,23 +343,52 @@ export function Structure({
     useMemo(() => canopyPositions(run, frame), [run, frame]),
   );
   const anchors = useMemo(() => anchorPoints(run.topology), [run]);
-  const anchorHeight = framing(frame).span / 40;
+  const names = useMemo(
+    () => ({
+      points: columnValues<string>(run.topology.points, "name"),
+      segments: columnValues<string>(run.topology.segments, "name"),
+      wings: columnValues<string>(run.topology.wings, "name"),
+    }),
+    [run],
+  );
 
   function pickPoint(event: ThreeEvent<MouseEvent>) {
-    if (!onPick || event.index === undefined) return;
+    if (event.index === undefined) return;
     event.stopPropagation();
-    onPick(pointPick(run, event.index));
+    onPick?.(pointPick(run, event.index));
+    onSelect?.({ kind: "point", name: names.points[event.index] });
+  }
+
+  function pickSegment(event: ThreeEvent<MouseEvent>) {
+    if (!onSelect || event.index === undefined) return;
+    event.stopPropagation();
+    onSelect({ kind: "segment", name: names.segments[Math.floor(event.index / 2)] });
+  }
+
+  const isSelected = (kind: Part["kind"], name: string) =>
+    selected?.kind === kind && selected.name === name;
+
+  function pick(part: Part) {
+    return (event: ThreeEvent<MouseEvent>) => {
+      if (!onSelect) return;
+      event.stopPropagation();
+      onSelect(part);
+    };
   }
 
   return (
     <group rotation={Z_UP_TO_Y_UP}>
-      <lineSegments>
+      <lineSegments onClick={pickSegment}>
         <bufferGeometry>
           <primitive attach="attributes-position" object={segments} />
           <primitive attach="attributes-color" object={lineColors} />
         </bufferGeometry>
         <lineBasicMaterial vertexColors />
       </lineSegments>
+      <Instances matrices={selectedMatrices}>
+        <cylinderGeometry args={[0.5, 0.5, 1, 8]} />
+        <meshBasicMaterial color={colors.highlight} />
+      </Instances>
       <Tubes run={run} frame={frame} color={colors.tube} />
       {canopy.count > 0 && (
         <mesh key={canopy.count}>
@@ -350,9 +426,24 @@ export function Structure({
           key={index}
           position={[frame.x[index], frame.y[index], frame.z[index] + anchorHeight / 2]}
           rotation={[Math.PI / 2, 0, 0]}
+          onClick={pick(pointPart(run, index))}
         >
           <coneGeometry args={[anchorHeight / 2, anchorHeight, 24]} />
-          <meshStandardMaterial color={colors.anchor} />
+          <meshStandardMaterial
+            color={selectedPoints.includes(index) ? colors.highlight : colors.anchor}
+          />
+        </mesh>
+      ))}
+      {names.wings.slice(0, frame.wings.length / 3).map((name, wing) => (
+        <mesh
+          key={name}
+          position={new THREE.Vector3().fromArray(frame.wings, wing * 3)}
+          onClick={pick({ kind: "wing", name })}
+        >
+          <octahedronGeometry args={[anchorHeight / 3]} />
+          <meshStandardMaterial
+            color={isSelected("wing", name) ? colors.highlight : colors.canopy}
+          />
         </mesh>
       ))}
     </group>

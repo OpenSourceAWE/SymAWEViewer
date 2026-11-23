@@ -9,7 +9,7 @@ import {
   timeAtX,
 } from "../src/TimePanel";
 import { defaultPanels, runQuantities, runTimes } from "../src/quantities";
-import { decodeRun } from "../src/topology";
+import { decodeRun, type Run } from "../src/topology";
 import { example, fixture, runOf, V3_RUN } from "./fixtures";
 
 const run = decodeRun(fixture(V3_RUN));
@@ -17,9 +17,20 @@ const quantities = runQuantities(run);
 const times = runTimes(run);
 const identity = (value: number) => value;
 
-function render(frame: number) {
-  return renderToStaticMarkup(<RunPanels run={run} frame={frame} onSeek={() => {}} />);
+function renderPanels(of: Run, frame: number, panels = defaultPanels(quantities)) {
+  return renderToStaticMarkup(
+    <RunPanels
+      run={of}
+      quantities={runQuantities(of)}
+      frame={frame}
+      onSeek={() => {}}
+      panels={panels}
+      onPanelsChange={() => {}}
+    />,
+  );
 }
+
+const render = (frame: number) => renderPanels(run, frame);
 
 describe("RunPanels", () => {
   it("draws the six default panels of the V3 run, with a line per quantity", () => {
@@ -53,7 +64,7 @@ describe("RunPanels", () => {
     expect(render(60)).toContain("3.00 s");
     const columns = run.table.schema.fields.map(({ name }) => name);
     const untimed = { ...run, table: run.table.select(columns.filter((name) => name !== "time")) };
-    const html = renderToStaticMarkup(<RunPanels run={untimed} frame={60} onSeek={() => {}} />);
+    const html = renderPanels(untimed, 60);
     expect(html).toContain("frame 60");
     expect(html).not.toContain("60.00 s");
   });

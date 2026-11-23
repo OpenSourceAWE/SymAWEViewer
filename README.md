@@ -43,6 +43,9 @@ names:
   none with the bodies its tubes join it to.
 - **Canopy faces** as a translucent surface over their corners.
 - **Each `fixed` point** as a cone: the ground anchor.
+- **Each wing's origin** as a small marker, where the log holds it: the slots
+  behind a frame's points are panel corners, then one origin per orientation
+  in `Qw`, the wings' first.
 - **Bodies and spanwise stations** as groups of points. Clicking a point
   highlights its body, clicking again each station it belongs to.
 
@@ -70,6 +73,18 @@ Three kinds of quantity are computed rather than read:
 - **Lift, drag and L/D**, the summed `aero_force_*` split along the apparent wind `v_wind_kite - vel_kite`. Drag is the part along it and lift all the rest, so side force in a turn counts as lift.
 - **CL and CD**, labelled as estimates: at an assumed air density of 1.225 kg/m³ and the canopy's area projected along the kite's z axis in the first frame. A run without `canopy_faces` has neither.
 
+## Inspecting a part
+
+Click a point, a segment, the anchor of a winch or a wing's marker to open a side panel on it; click empty space or × to close it. The panel gives the part's name and what the structure document says about it, such as a segment's role, rest length and tether, and its state at the time cursor, each with its unit:
+
+- **Point**: position, velocity and speed, from its slot of `X`/`Y`/`Z` and `VX`/`VY`/`VZ`.
+- **Segment**: the `spring_force` row that indexes it, its length between its two points, and its strain against its rest length.
+- **Wing**: position, velocity and speed of its origin, and roll, pitch and yaw from its quaternion.
+- **Winch**: its slot of tether length, reel-out speed, winch force and the winch settings.
+- **Tether**: the length of its segments together, its strain, and the force in the segment at each end.
+
+A part the document names beside the selected one, such as a segment's tether or a winch's winch point, is a link to that part. **pin** adds a quantity as a 2D panel, named after its part, and **CSV** above the panels saves every panel's quantities over time, one row per frame, the time first.
+
 The same data is yours to draw in your own layout:
 
 | Export | What it gives |
@@ -80,7 +95,13 @@ The same data is yours to draw in your own layout:
 | `nearestFrame(times, time)` | the frame nearest a time |
 | `kiteAttitude(w, x, y, z)` | roll, pitch and yaw [rad] of a quaternion |
 | `run.table` | the run's Arrow table, for any column not listed |
-| `RunPanels`, `TimePanel` | the scrubber and panels, and one panel |
+| `RunPanels`, `TimePanel` | the scrubber and the panels you hand it, and one panel |
+| `panelsOfRun(choice, run, quantities)` | the panels chosen on a run, or its defaults |
+| `partQuantities(run, part)` | the state over time of a point, segment, wing, winch or tether |
+| `partFacts(run, part)` | what the structure document says about a part |
+| `findQuantity(run, quantities, id)` | a quantity of the run or of a part, by its id |
+| `quantitiesCsv(times, header, quantities)` | quantities over time as CSV |
+| `Inspector` | the side panel on one part |
 | `runForces(run)` | the spring force and force arrows a run offers |
 | `forceColors(forces, limit, palette)` | one frame's spring forces as segment colours, for `Structure`'s `segmentColors` |
 | `arrowScale(forces, span)` | the metres per newton of a run's arrows, for `arrowEnds` |

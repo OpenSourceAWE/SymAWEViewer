@@ -1,5 +1,13 @@
 import { DataType } from "apache-arrow";
-import { canopyPositions, type Run } from "./topology";
+import { partRow, type Part, type PartKind } from "./parts";
+import {
+  canopyPositions,
+  columnValues,
+  pointIndexOf,
+  wingOriginSlots,
+  type Run,
+} from "./topology";
+import type { NameList, NamePair } from "./generated/structure";
 
 /** One number per frame of a run, ready to plot. */
 export interface Quantity {
@@ -13,6 +21,8 @@ export interface Quantity {
   values: Float64Array;
   /** An angle that wraps at ±180°, so a jump in it is not a change in it. */
   periodic: boolean;
+  /** The part it belongs to, as `segment 1_seg_6`; absent for a quantity of the whole run. */
+  of?: string;
 }
 
 interface ColumnSpec {
@@ -141,6 +151,11 @@ export interface RunForces {
   arrows: ForceArrows[];
 }
 
+/** The quantity's label, preceded by the part it belongs to. */
+export function quantityLabel({ label, of }: Quantity): string {
+  return of ? `${of} ${label}` : label;
+}
+
 /** Each row of list column `name` as an array, or undefined without the column. */
 function listRows(run: Run, name: string): ArrayLike<number>[] | undefined {
   const column = run.table.getChild(name);
@@ -221,25 +236,32 @@ function derived(id: string, label: string, unit: string, values: Float64Array, 
   return { id, column: id, label, unit, values, periodic };
 }
 
-/** A reader of the kite's quaternion per frame, its first orientation slot, if it has one. */
-function quaternionRows(run: Run) {
+/** A reader of the quaternion per frame of orientation slot `slot`, if the log holds one. */
+function quaternionRows(run: Run, slot = 0) {
   const [w, x, y, z] = ["Qw", "Qx", "Qy", "Qz"].map((name) => listRows(run, name));
-  if (!w || !x || !y || !z || w[0].length === 0) return undefined;
-  return (i: number) => [w[i][0], x[i][0], y[i][0], z[i][0]] as const;
+  if (!w || !x || !y || !z || w[0].length <= slot) return undefined;
+  return (i: number) => [w[i][slot], x[i][slot], y[i][slot], z[i][slot]] as const;
 }
 
+const ANGLES = ["roll", "pitch", "yaw"] as const;
+
+/** Roll, pitch and yaw [deg] in every frame of orientation slot `slot`, if the log holds it. */
+function attitudes(run: Run, slot: number) {
+  const quaternion = quaternionRows(run, slot);
+  if (!quaternion) return undefined;
+  const frames = Array.from({ length: run.table.numRows }, (_, i) =>
+    kiteAttitude(...quaternion(i)),
+  );
+  return Object.fromEntries(
+    ANGLES.map((angle) => [angle, Float64Array.from(frames, (frame) => frame[angle] * DEGREES)]),
+  ) as Record<(typeof ANGLES)[number], Float64Array>;
+}
+
+/** Roll, pitch and yaw of the first wing, each periodic but pitch. */
 function attitudeQuantities(run: Run): Quantity[] {
-  const quaternion = quaternionRows(run);
-  if (!quaternion) return [];
-  const frames = run.table.numRows;
-  const attitudes = Array.from({ length: frames }, (_, i) => kiteAttitude(...quaternion(i)));
-  const inDegrees = (angleOf: (attitude: (typeof attitudes)[number]) => number) =>
-    Float64Array.from(attitudes, (attitude) => angleOf(attitude) * DEGREES);
-  return [
-    derived("roll", "roll", "deg", inDegrees((attitude) => attitude.roll), true),
-    derived("pitch", "pitch", "deg", inDegrees((attitude) => attitude.pitch)),
-    derived("yaw", "yaw", "deg", inDegrees((attitude) => attitude.yaw), true),
-  ];
+  const angles = attitudes(run, 0);
+  if (!angles) return [];
+  return ANGLES.map((angle) => derived(angle, angle, "deg", angles[angle], angle !== "pitch"));
 }
 
 /** Twice the area vector of the triangle at offset `i` of flat `corners`. */
@@ -326,11 +348,17 @@ export function runQuantities(run: Run): Quantity[] {
   return quantities.filter(({ column }) => kept.has(column));
 }
 
-/** `spring_force` where its rows index the segments and it holds a value besides zero and NaN. */
-function springForces(run: Run): SpringForces | undefined {
+/** The rows of `spring_force`, where each holds a force per segment. */
+function springRows(run: Run): ArrayLike<number>[] | undefined {
   const rows = listRows(run, "spring_force");
   const segments = run.topology.segments.data.length;
-  if (!rows?.every((row) => row.length === segments)) return undefined;
+  return rows?.every((row) => row.length === segments) ? rows : undefined;
+}
+
+/** `spring_force` where its rows index the segments and it holds a value besides zero and NaN. */
+function springForces(run: Run): SpringForces | undefined {
+  const rows = springRows(run);
+  if (!rows) return undefined;
   let [min, max] = [Infinity, -Infinity];
   const known: number[] = [];
   for (const row of rows) {
@@ -418,4 +446,179 @@ export function nearestFrame(times: Float64Array, time: number): number {
     else high = middle;
   }
   return time - times[low] <= times[high] - time ? low : high;
+}
+
+/** Slot `slot` of list column `name` in every frame, or undefined where no row reaches it. */
+function slotSeries(run: Run, name: string, slot: number): Float64Array | undefined {
+  const rows = listRows(run, name);
+  if (!rows?.every((row) => row.length > slot)) return undefined;
+  return Float64Array.from(rows, (row) => row[slot]);
+}
+
+type Make = (
+  key: string,
+  label: string,
+  unit: string,
+  values: Float64Array,
+  periodic?: boolean,
+) => Quantity;
+
+/** A maker of the quantities of `part`, each with an id unique to the part. */
+function quantityMaker(part: Part): Make {
+  const of = `${part.kind} ${part.name}`;
+  const column = `${part.kind}:${part.name}`;
+  return (key, label, unit, values, periodic = false) =>
+    ({ id: `${column}/${key}`, column, label, unit, values, periodic, of });
+}
+
+/** Position and, where the log holds it, velocity and speed of frame slot `slot`. */
+function motion(run: Run, slot: number, make: Make): Quantity[] {
+  const position = ["X", "Y", "Z"].map((name) => slotSeries(run, name, slot));
+  const velocity = ["VX", "VY", "VZ"].map((name) => slotSeries(run, name, slot));
+  const quantities = XYZ.flatMap((axis, i) =>
+    position[i] ? [make(axis, `position ${axis}`, "m", position[i])] : [],
+  );
+  if (velocity.includes(undefined)) return quantities;
+  const [vx, vy, vz] = velocity as Float64Array[];
+  return [
+    ...quantities,
+    ...XYZ.map((axis, i) => make(`v${axis}`, `velocity ${axis}`, "m/s", velocity[i]!)),
+    make("speed", "speed", "m/s", vx.map((value, i) => Math.hypot(value, vy[i], vz[i]))),
+  ];
+}
+
+/** The length of segment `row` in every frame [m]. */
+function segmentLength(run: Run, row: number): Float64Array {
+  const [a, b] = columnValues<NamePair>(run.topology.segments, "points")[row].map((name) =>
+    pointIndexOf(run, name, "segment"),
+  );
+  return Float64Array.from(run.frames, ({ x, y, z }) =>
+    Math.hypot(x[b] - x[a], y[b] - y[a], z[b] - z[a]),
+  );
+}
+
+/** The spring force of segment `row` in every frame [N], where `spring_force` indexes segments. */
+function segmentForce(run: Run, row: number): Float64Array | undefined {
+  const rows = springRows(run);
+  return rows && Float64Array.from(rows, (forces) => forces[row]);
+}
+
+const restLength = (run: Run, row: number) =>
+  columnValues<number>(run.topology.segments, "rest_length")[row];
+
+/** Length and strain against `rest` [m], with the force where there is one. */
+function stretch(make: Make, length: Float64Array, rest: number, force?: Float64Array) {
+  return [
+    ...(force ? [make("force", "force", "N", force)] : []),
+    make("length", "length", "m", length),
+    make("strain", "strain", "-", length.map((value) => (value - rest) / rest)),
+  ];
+}
+
+function segmentQuantities(run: Run, row: number, make: Make): Quantity[] {
+  return stretch(make, segmentLength(run, row), restLength(run, row), segmentForce(run, row));
+}
+
+function wingQuantities(run: Run, row: number, make: Make): Quantity[] {
+  const slot = wingOriginSlots(run.table, run.topology.wings.data.length)[row];
+  const angles = attitudes(run, row);
+  if (slot === undefined || !angles) return [];
+  return [
+    ...motion(run, slot, make),
+    ...ANGLES.map((angle) => make(angle, angle, "deg", angles[angle], angle !== "pitch")),
+  ];
+}
+
+/** The columns holding one value per winch, by their first name in `COLUMNS`. */
+const WINCH_COLUMNS = [
+  "l_tether",
+  "v_reelout",
+  "winch_force",
+  "set_force",
+  "set_speed",
+  "set_torque",
+];
+
+function winchQuantities(run: Run, row: number, make: Make): Quantity[] {
+  return WINCH_COLUMNS.flatMap((name) => {
+    const spec = COLUMNS.find(({ names }) => names[0] === name)!;
+    const values = slotSeries(run, name, row);
+    return values ? [make(name, spec.label, spec.unit, values)] : [];
+  });
+}
+
+function tetherQuantities(run: Run, row: number, make: Make): Quantity[] {
+  const { tethers, segments } = run.topology;
+  const names = columnValues<string>(segments, "name");
+  const members = columnValues<NameList>(tethers, "segments")[row].map((name) =>
+    names.indexOf(name),
+  );
+  const length = new Float64Array(run.frames.length);
+  for (const member of members) {
+    segmentLength(run, member).forEach((value, i) => (length[i] += value));
+  }
+  const rest = members.reduce((sum, member) => sum + restLength(run, member), 0);
+  const quantities = stretch(make, length, rest);
+  const ends = columnValues<NamePair>(segments, "points");
+  for (const end of ["start_point", "end_point"]) {
+    const point = columnValues<string>(tethers, end)[row];
+    const member = members.find((segment) => ends[segment].includes(point));
+    const force = member === undefined ? undefined : segmentForce(run, member);
+    if (force) quantities.push(make(`force_${end}`, `force at point ${point}`, "N", force));
+  }
+  return quantities;
+}
+
+const PART_QUANTITIES: Record<PartKind, (run: Run, row: number, make: Make) => Quantity[]> = {
+  point: motion,
+  segment: segmentQuantities,
+  wing: wingQuantities,
+  winch: winchQuantities,
+  tether: tetherQuantities,
+};
+
+/**
+ * The state of `part` in every frame: position and velocity of a point; force, length
+ * and strain of a segment or a tether; position, velocity and attitude of a wing; and
+ * the logged state of a winch. Empty for a part `run` does not hold.
+ */
+export function partQuantities(run: Run, part: Part): Quantity[] {
+  const row = partRow(run, part);
+  return row < 0 ? [] : PART_QUANTITIES[part.kind](run, row, quantityMaker(part));
+}
+
+/** The quantity with `id`, of the whole run among `quantities` or of a part of `run`. */
+export function findQuantity(
+  run: Run,
+  quantities: Quantity[],
+  id: string,
+): Quantity | undefined {
+  const own = quantities.find((quantity) => quantity.id === id);
+  const [, kind, name] = /^(\w+):(.+)\/[^/]+$/.exec(id) ?? [];
+  if (own || !Object.hasOwn(PART_QUANTITIES, kind ?? "")) return own;
+  return partQuantities(run, { kind: kind as PartKind, name }).find((part) => part.id === id);
+}
+
+/** A CSV field, quoted where it holds a comma, a quote or a line break. */
+function csvField(text: string): string {
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+/**
+ * `quantities` as CSV, one row per frame: a first column of `times` headed `timeHeader`,
+ * then a column per quantity headed by its label and unit. A value that is not finite is empty.
+ */
+export function quantitiesCsv(
+  times: Float64Array,
+  timeHeader: string,
+  quantities: Quantity[],
+): string {
+  const units = quantities.map((quantity) => `${quantityLabel(quantity)} [${quantity.unit}]`);
+  const header = [timeHeader, ...units];
+  const rows = Array.from(times, (time, frame) =>
+    [time, ...quantities.map(({ values }) => values[frame])]
+      .map((value) => (Number.isFinite(value) ? String(value) : ""))
+      .join(","),
+  );
+  return [header.map(csvField).join(","), ...rows].join("\n") + "\n";
 }
