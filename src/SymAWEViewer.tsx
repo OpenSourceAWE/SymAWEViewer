@@ -8,7 +8,7 @@ import {
 import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
 import { framing, resolvePalette, Structure, type Palette } from "./Structure";
-import { RunPanels } from "./TimePanel";
+import { INK, MUTED, RunPanels } from "./TimePanel";
 import {
   anchorPoints,
   nextGroup,
@@ -17,7 +17,7 @@ import {
   type PointPick,
   type SegmentRole,
 } from "./parts";
-import { decodeRun, loadRun, type Run } from "./topology";
+import { decodeRun, loadRun, type Run, type RunProvenance } from "./topology";
 
 export interface SymAWEViewerProps {
   /** URL of an exported `.arrow` run. Ignored when `data` is given. */
@@ -61,8 +61,34 @@ const overlayStyle: CSSProperties = {
   top: "1.5rem",
   left: "1.5rem",
   pointerEvents: "none",
-  color: "#9aa0ad",
+  color: MUTED,
   font: "12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace",
+};
+
+const infoStyle: CSSProperties = {
+  ...overlayStyle,
+  left: "auto",
+  right: "1.5rem",
+  maxWidth: "24rem",
+  textAlign: "right",
+  pointerEvents: "auto",
+};
+
+const infoButtonStyle: CSSProperties = {
+  display: "inline-block",
+  width: "1.5em",
+  lineHeight: "1.5em",
+  textAlign: "center",
+  border: `1px solid ${MUTED}`,
+  borderRadius: "50%",
+  color: INK,
+  cursor: "pointer",
+};
+
+const infoTableStyle: CSSProperties = {
+  marginLeft: "auto",
+  textAlign: "left",
+  borderCollapse: "collapse",
 };
 
 const ROLE_LABELS: Record<SegmentRole, string> = {
@@ -83,6 +109,51 @@ function Swatch({ color, glyph = "━━", label }: SwatchProps) {
     <p style={{ margin: 0 }}>
       <span style={{ color }}>{glyph}</span> {label}
     </p>
+  );
+}
+
+/** A parameter's value as written: a string as it is, anything else as JSON. */
+function formatSetting(value: unknown): string {
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+/** A titled group of name–value rows; nothing where `settings` is empty. */
+function SettingsRows({ title, settings = {} }: {
+  title: string;
+  settings?: Record<string, unknown>;
+}) {
+  const rows = Object.entries(settings);
+  if (rows.length === 0) return null;
+  return (
+    <tbody>
+      <tr>
+        <th colSpan={2} scope="colgroup" style={{ fontWeight: 400, paddingTop: "0.6rem" }}>
+          {title}
+        </th>
+      </tr>
+      {rows.map(([name, value]) => (
+        <tr key={name}>
+          <th scope="row" style={{ fontWeight: 400, padding: "0 0.75rem 0 1ch" }}>{name}</th>
+          <td style={{ color: INK }}>{formatSetting(value)}</td>
+        </tr>
+      ))}
+    </tbody>
+  );
+}
+
+/** An info button over the scene's top-right corner opening what produced the run. */
+export function RunInfo({ provenance }: { provenance: RunProvenance }) {
+  return (
+    <details style={infoStyle}>
+      <summary aria-label="how this run was made" style={infoButtonStyle}>
+        i
+      </summary>
+      {provenance.kind && <p style={{ color: INK, margin: 0 }}>{provenance.kind}</p>}
+      <table style={infoTableStyle}>
+        <SettingsRows title="parameters" settings={provenance.parameters} />
+        <SettingsRows title="commits" settings={provenance.commits} />
+      </table>
+    </details>
   );
 }
 
@@ -175,7 +246,7 @@ export function SymAWEViewer({
   if (!run) {
     return (
       <div ref={box} className={className} style={{ ...centred, ...style }}>
-        <p style={{ color: "#9aa0ad", margin: 0 }}>loading…</p>
+        <p style={{ color: MUTED, margin: 0 }}>loading…</p>
       </div>
     );
   }
@@ -236,7 +307,7 @@ export function SymAWEViewer({
 
         {showOverlay && (
           <div style={overlayStyle}>
-            <p style={{ color: "#d7dae1", margin: 0 }}>{meta.name}</p>
+            <p style={{ color: INK, margin: 0 }}>{meta.name}</p>
             <p style={{ margin: 0 }}>{meta.note}</p>
             <p style={{ margin: "0.6rem 0 0" }}>
               {run.topology.points.data.length} points
@@ -278,9 +349,10 @@ export function SymAWEViewer({
             </p>
           </div>
         )}
+        {run.provenance && <RunInfo provenance={run.provenance} />}
         {children}
       </div>
-      {lastFrame > 0 && <RunPanels run={run} frame={current} onSeek={seek} />}
+      <RunPanels run={run} frame={current} onSeek={seek} />
     </div>
   );
 }

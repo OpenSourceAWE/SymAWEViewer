@@ -40,6 +40,7 @@ export {
   segmentPositions,
   type Frame,
   type Run,
+  type RunProvenance,
   type StructureDocument,
   type Topology,
   type TopologyMetadata,

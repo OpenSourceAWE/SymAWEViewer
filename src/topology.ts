@@ -38,6 +38,18 @@ export interface Run {
   pointIndex: Map<string, number>;
   /** The whole log, one row per frame, for its columns beyond the positions. */
   table: ArrowTable;
+  /** Where the run came from, when its file says. */
+  provenance?: RunProvenance;
+}
+
+/** The `run` key of a run's Arrow schema metadata: what produced it, and from what. */
+export interface RunProvenance {
+  /** What produced the run, such as a simulation or a flight log. */
+  kind?: string;
+  /** The inputs it was produced with, by name. */
+  parameters?: Record<string, unknown>;
+  /** The commit each repository it was produced from stood at, by repository. */
+  commits?: Record<string, string>;
 }
 
 /** The `awesIO_version` of the vendored `structure_schema.yml`. */
@@ -163,9 +175,10 @@ export function connectivitySha(topology: Topology, source = "topology"): string
  * Arrow schema metadata, and the world-frame coordinate columns.
  *
  * Refuses a compressed file, an unknown major `awesIO_version`, a document missing
- * a required block, a `connectivity_sha` that disagrees with the blocks, and frames
- * with fewer positions than points. A frame holds its points in its first slots; the
- * slots a log keeps behind them are not read. `source` only labels error messages.
+ * a required block, a `connectivity_sha` that disagrees with the blocks, frames with
+ * fewer positions than points, and `run` metadata that is not JSON. A frame holds its
+ * points in its first slots; the slots a log keeps behind them are not read. `source`
+ * only labels error messages.
  */
 export function decodeRun(
   bytes: ArrayBuffer | Uint8Array,
@@ -187,6 +200,7 @@ export function decodeRun(
   }
 
   const document = JSON.parse(raw) as StructureDocument;
+  const provenance = runProvenance(table, source);
   const topology = readBlocks(document, source);
   checkVersion(topology.metadata.awesIO_version, source);
   const sha = connectivitySha(topology, source);
@@ -227,7 +241,17 @@ export function decodeRun(
   const names = columnValues<string>(topology.points, "name");
   const pointIndex = new Map(names.map((name, i) => [name, i]));
 
-  return { topology, frames, pointIndex, table };
+  return { topology, frames, pointIndex, table, provenance };
+}
+
+function runProvenance(table: ArrowTable, source: string): RunProvenance | undefined {
+  const raw = table.schema.metadata.get("run");
+  if (raw === undefined) return undefined;
+  try {
+    return JSON.parse(raw) as RunProvenance;
+  } catch {
+    throw new Error(`${source} carries "run" metadata that is not JSON: ${raw.slice(0, 80)}`);
+  }
 }
 
 /**

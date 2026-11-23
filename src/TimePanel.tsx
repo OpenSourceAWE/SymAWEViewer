@@ -16,8 +16,10 @@ import {
 import type { Run } from "./topology";
 
 const SERIES_COLORS = ["#3987e5", "#d95926", "#199e70", "#c98500"];
-const INK = "#d7dae1";
-const MUTED = "#9aa0ad";
+/** Text colour of what a reader looks for. */
+export const INK = "#d7dae1";
+/** Text colour of labels and axes. */
+export const MUTED = "#9aa0ad";
 const GRID = "#1b2030";
 const CURSOR = "#f2f3f5";
 
@@ -53,6 +55,8 @@ const removeStyle: CSSProperties = {
 };
 
 const barStyle: CSSProperties = { display: "flex", alignItems: "center", gap: "0.75rem" };
+
+const cellStyle: CSSProperties = { padding: "0 0.75rem 0 0", textAlign: "left", fontWeight: 400 };
 
 /** Round axis ticks inside `min..max`, at most about `count + 1` of them. */
 export function niceTicks(min: number, max: number, count: number): number[] {
@@ -296,6 +300,23 @@ export function TimePanel({ quantities, times, frame, onSeek, onRemove }: TimePa
   );
 }
 
+/** Each quantity's value in a run's only frame, one row each. */
+function FrameTable({ quantities }: { quantities: Quantity[] }) {
+  return (
+    <table style={{ borderCollapse: "collapse" }}>
+      <tbody>
+        {quantities.map(({ id, label, unit, values }) => (
+          <tr key={id}>
+            <th scope="row" style={{ ...cellStyle, color: INK }}>{label}</th>
+            <td style={{ ...cellStyle, textAlign: "right" }}>{formatValue(values[0])}</td>
+            <td style={cellStyle}>{unit}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export interface RunPanelsProps {
   run: Run;
   frame: number;
@@ -317,7 +338,10 @@ export function panelsOfRun(
   return choice?.run === run ? choice.panels : defaultPanels(quantities);
 }
 
-/** The scrubber and the 2D panels of a run, chosen from the columns it carries. */
+/**
+ * The scrubber and the 2D panels of a run, chosen from the columns it carries; for a run
+ * of one frame, a table of the same quantities instead.
+ */
 export function RunPanels({ run, frame, onSeek }: RunPanelsProps) {
   const quantities = useMemo(() => runQuantities(run), [run]);
   const times = useMemo(() => runTimes(run), [run]);
@@ -329,6 +353,15 @@ export function RunPanels({ run, frame, onSeek }: RunPanelsProps) {
   }, [panels, quantities]);
   const cursor = Math.min(frame, times.length - 1);
   const shown = new Set(panels.flat());
+
+  if (times.length === 1) {
+    if (quantities.length === 0) return null;
+    return (
+      <div style={{ ...stripStyle, columns: "18rem" }}>
+        <FrameTable quantities={quantities} />
+      </div>
+    );
+  }
 
   return (
     <div style={stripStyle}>
