@@ -29,6 +29,8 @@ export interface Frame {
   x: Float32Array;
   y: Float32Array;
   z: Float32Array;
+  /** Flat `[x, y, z, ...]` origin of each wing of the `wings` block, in its row order. */
+  wings: Float32Array;
 }
 
 export interface Run {
@@ -164,8 +166,9 @@ export function connectivitySha(topology: Topology, source = "topology"): string
  *
  * Refuses a compressed file, an unknown major `awesIO_version`, a document missing
  * a required block, a `connectivity_sha` that disagrees with the blocks, and frames
- * with fewer positions than points. A frame holds its points in its first slots; the
- * slots a log keeps behind them are not read. `source` only labels error messages.
+ * with fewer positions than points. A frame holds its points in its first slots, then
+ * panel corners, then wing and body origins; the corners are not read. `source` only
+ * labels error messages.
  */
 export function decodeRun(
   bytes: ArrayBuffer | Uint8Array,
@@ -215,19 +218,31 @@ export function decodeRun(
     );
   }
   const pointsOf = (row: ArrayLike<number>) => Float32Array.from(row).slice(0, pointCount);
+  const wingSlots = wingOriginSlots(table, topology.wings.data.length);
   const frames: Frame[] = [];
   for (let i = 0; i < table.numRows; i++) {
-    frames.push({
-      x: pointsOf(xs.get(i).toArray()),
-      y: pointsOf(ys.get(i).toArray()),
-      z: pointsOf(zs.get(i).toArray()),
-    });
+    const [x, y, z] = [xs, ys, zs].map((axis) => axis.get(i).toArray() as ArrayLike<number>);
+    const wings = new Float32Array(wingSlots.length * 3);
+    wingSlots.forEach((slot, wing) => wings.set([x[slot], y[slot], z[slot]], wing * 3));
+    frames.push({ x: pointsOf(x), y: pointsOf(y), z: pointsOf(z), wings });
   }
 
   const names = columnValues<string>(topology.points, "name");
   const pointIndex = new Map(names.map((name, i) => [name, i]));
 
   return { topology, frames, pointIndex, table };
+}
+
+/**
+ * The slot of each of `wings` wing origins in a frame of `table`: the origins of the
+ * wings, then of the bodies, close each frame, one per orientation `Qw` holds. None
+ * where the log holds no orientation for every wing.
+ */
+export function wingOriginSlots(table: ArrowTable, wings: number): number[] {
+  const orientations = table.getChild("Qw")?.get(0)?.length ?? 0;
+  const slots = table.getChild("X")?.get(0)?.length ?? 0;
+  if (orientations < wings) return [];
+  return Array.from({ length: wings }, (_, wing) => slots - orientations + wing);
 }
 
 /**

@@ -8,8 +8,10 @@ import {
 } from "react";
 import {
   defaultPanels,
+  findQuantity,
   nearestFrame,
-  runQuantities,
+  quantitiesCsv,
+  quantityLabel,
   runTimes,
   type Quantity,
 } from "./quantities";
@@ -44,7 +46,7 @@ const gridStyle: CSSProperties = {
   gap: "0.5rem 0.75rem",
 };
 
-const removeStyle: CSSProperties = {
+export const buttonStyle: CSSProperties = {
   background: "none",
   border: 0,
   color: MUTED,
@@ -114,7 +116,8 @@ function valueRange(quantities: Quantity[]): [number, number] {
   return [min - margin, max + margin];
 }
 
-function formatValue(value: number): string {
+/** `value` to four significant digits, or a dash where it is not finite. */
+export function formatValue(value: number): string {
   return Number.isFinite(value) ? String(Number(value.toPrecision(4))) : "–";
 }
 
@@ -145,7 +148,7 @@ function PanelReadout({ quantities, read, onRemove }: {
         {quantities.map((quantity, line) => (
           <span key={quantity.id} style={{ marginRight: "0.75rem", whiteSpace: "nowrap" }}>
             {quantities.length > 1 && <span style={{ color: seriesColor(line) }}>━ </span>}
-            <span style={{ color: INK }}>{quantity.label}</span>{" "}
+            <span style={{ color: INK }}>{quantityLabel(quantity)}</span>{" "}
             {formatValue(quantity.values[read])}
           </span>
         ))}
@@ -154,9 +157,9 @@ function PanelReadout({ quantities, read, onRemove }: {
       {onRemove && (
         <button
           type="button"
-          aria-label={`remove ${quantities.map(({ label }) => label).join(", ")}`}
+          aria-label={`remove ${quantities.map(quantityLabel).join(", ")}`}
           onClick={onRemove}
-          style={removeStyle}
+          style={buttonStyle}
         >
           ×
         </button>
@@ -298,12 +301,17 @@ export function TimePanel({ quantities, times, frame, onSeek, onRemove }: TimePa
 
 export interface RunPanelsProps {
   run: Run;
+  /** The quantities of the whole run, as `runQuantities` gives them. */
+  quantities: Quantity[];
   frame: number;
   onSeek: (frame: number) => void;
+  /** The panels to draw, each a list of quantity ids sharing an axis. */
+  panels: string[][];
+  onPanelsChange: (panels: string[][]) => void;
 }
 
 /** The panels someone chose on `run`, each a list of quantity ids sharing an axis. */
-interface PanelChoice {
+export interface PanelChoice {
   run: Run;
   panels: string[][];
 }
@@ -317,18 +325,39 @@ export function panelsOfRun(
   return choice?.run === run ? choice.panels : defaultPanels(quantities);
 }
 
-/** The scrubber and the 2D panels of a run, chosen from the columns it carries. */
-export function RunPanels({ run, frame, onSeek }: RunPanelsProps) {
-  const quantities = useMemo(() => runQuantities(run), [run]);
+/** Hand the browser `text` to save as `filename`. */
+function download(filename: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
+  const link = Object.assign(document.createElement("a"), { href: url, download: filename });
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url));
+}
+
+/**
+ * The scrubber and the 2D panels of a run, with a list adding a quantity of the run as
+ * a panel and a button saving every panel's quantities over time as CSV.
+ */
+export function RunPanels({
+  run,
+  quantities,
+  frame,
+  onSeek,
+  panels,
+  onPanelsChange,
+}: RunPanelsProps) {
   const times = useMemo(() => runTimes(run), [run]);
-  const [choice, setChoice] = useState<PanelChoice | null>(null);
-  const panels = useMemo(() => panelsOfRun(choice, run, quantities), [choice, run, quantities]);
-  const lines = useMemo(() => {
-    const byId = new Map(quantities.map((quantity) => [quantity.id, quantity]));
-    return panels.map((panel) => panel.map((id) => byId.get(id)!));
-  }, [panels, quantities]);
+  const lines = useMemo(
+    () => panels.map((panel) => panel.flatMap((id) => findQuantity(run, quantities, id) ?? [])),
+    [run, panels, quantities],
+  );
   const cursor = Math.min(frame, times.length - 1);
   const shown = new Set(panels.flat());
+  const timed = Boolean(run.table.getChild("time"));
+  const saveCsv = () =>
+    download(
+      `${run.topology.metadata.name}.csv`,
+      quantitiesCsv(times, timed ? "time [s]" : "frame", lines.flat()),
+    );
 
   return (
     <div style={stripStyle}>
@@ -343,12 +372,12 @@ export function RunPanels({ run, frame, onSeek }: RunPanelsProps) {
           style={{ flex: 1, minWidth: 0, accentColor: CURSOR }}
         />
         <span style={{ color: INK, whiteSpace: "nowrap" }}>
-          {run.table.getChild("time") ? `${times[cursor].toFixed(2)} s` : `frame ${cursor}`}
+          {timed ? `${times[cursor].toFixed(2)} s` : `frame ${cursor}`}
         </span>
         <select
           aria-label="add a panel"
           value=""
-          onChange={(event) => setChoice({ run, panels: [...panels, [event.target.value]] })}
+          onChange={(event) => onPanelsChange([...panels, [event.target.value]])}
           style={{ maxWidth: "9rem", background: "transparent", color: MUTED, font: "inherit" }}
         >
           <option value="" disabled>
@@ -362,20 +391,30 @@ export function RunPanels({ run, frame, onSeek }: RunPanelsProps) {
               </option>
             ))}
         </select>
+        <button
+          type="button"
+          title="save the panels' quantities over time as CSV"
+          disabled={lines.flat().length === 0}
+          onClick={saveCsv}
+          style={{ ...buttonStyle, border: `1px solid ${MUTED}`, borderRadius: 3 }}
+        >
+          CSV
+        </button>
       </div>
       <div style={gridStyle}>
-        {panels.map((panel, i) => (
-          <TimePanel
-            key={panel.join()}
-            quantities={lines[i]}
-            times={times}
-            frame={cursor}
-            onSeek={onSeek}
-            onRemove={() =>
-              setChoice({ run, panels: panels.filter((other) => other !== panel) })
-            }
-          />
-        ))}
+        {panels.map(
+          (panel, i) =>
+            lines[i].length > 0 && (
+              <TimePanel
+                key={panel.join()}
+                quantities={lines[i]}
+                times={times}
+                frame={cursor}
+                onSeek={onSeek}
+                onRemove={() => onPanelsChange(panels.filter((_, other) => other !== i))}
+              />
+            ),
+        )}
       </div>
     </div>
   );

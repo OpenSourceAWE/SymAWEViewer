@@ -1,9 +1,11 @@
 import {
+  column,
   columnValues,
   pointIndexOf,
   type Frame,
   type Run,
   type Topology,
+  type TopologyTable,
 } from "./topology";
 import type {
   NameList,
@@ -175,4 +177,159 @@ export function tubeEnds(run: Run, frame: Frame): Float32Array {
     out.set(placed.subarray(at, at + 3), i * 3);
   });
   return out;
+}
+
+/** What `segmentRoles` calls each role, in words. */
+export const ROLE_LABELS: Record<SegmentRole, string> = {
+  power: "tether, reeled by a winch",
+  tether: "tether",
+  pulley: "bridle over a pulley",
+  bridle: "fixed bridle",
+};
+
+/** The kinds of part someone can select, each a block of the structure document. */
+export type PartKind = "point" | "segment" | "wing" | "winch" | "tether";
+
+/** A selected part: its kind, and its name in that kind's block. */
+export interface Part {
+  kind: PartKind;
+  name: string;
+}
+
+/** What the structure document says about a part: a label, and a value or the parts it names. */
+export interface PartFact {
+  label: string;
+  value?: string;
+  parts?: Part[];
+}
+
+const BLOCK_OF = {
+  point: "points",
+  segment: "segments",
+  wing: "wings",
+  winch: "winches",
+  tether: "tethers",
+} as const satisfies Record<PartKind, keyof Topology>;
+
+/** The row of `part` in its block, or -1 where the block names no such part. */
+export function partRow(run: Run, part: Part): number {
+  return columnValues<string>(run.topology[BLOCK_OF[part.kind]], "name").indexOf(part.name);
+}
+
+/** The value in row `row` of column `name` of `block` to six digits, with the column's unit. */
+function withUnit(block: TopologyTable, name: string, row: number): string {
+  const index = column(block, name);
+  const value = String(Number(Number(block.data[row][index]).toPrecision(6)));
+  return block.units[index] === "-" ? value : `${value} ${block.units[index]}`;
+}
+
+/** Column `of` of the rows of `block` whose column `name` holds or is `member`. */
+function holders(block: TopologyTable, name: string, member: string, of = "name"): string[] {
+  const values = columnValues<string>(block, of);
+  return columnValues<string | string[]>(block, name).flatMap((held, i) =>
+    [held].flat().includes(member) ? [values[i]] : [],
+  );
+}
+
+const parts = (kind: PartKind, names: string[]): Part[] =>
+  [...new Set(names)].map((name) => ({ kind, name }));
+
+/** A part's name and its row in its block of `topology`. */
+interface FactSource {
+  topology: Topology;
+  name: string;
+  row: number;
+}
+
+function pointFacts({ topology, name, row }: FactSource): PartFact[] {
+  const { points, segments, spanwise_stations: stations, winches } = topology;
+  const fixed = columnValues<boolean>(points, "fixed")[row];
+  return [
+    { label: "role", value: fixed ? "fixed in the world" : "free" },
+    { label: "body", value: columnValues<OptionalName>(points, "body")[row] ?? "" },
+    { label: "extra mass", value: withUnit(points, "extra_mass", row) },
+    { label: "stations", value: holders(stations, "points", name).join(", ") },
+    { label: "wing", parts: parts("wing", holders(stations, "points", name, "wing")) },
+    { label: "segments", parts: parts("segment", holders(segments, "points", name)) },
+    { label: "winch", parts: parts("winch", holders(winches, "winch_point", name)) },
+  ];
+}
+
+function segmentFacts({ topology, name, row }: FactSource): PartFact[] {
+  const { segments, tethers, pulleys } = topology;
+  const ends = columnValues<NamePair>(segments, "points")[row];
+  return [
+    { label: "role", value: ROLE_LABELS[segmentRoles(topology)[row]] },
+    { label: "points", parts: parts("point", ends) },
+    { label: "rest length", value: withUnit(segments, "rest_length", row) },
+    { label: "diameter", value: withUnit(segments, "diameter", row) },
+    { label: "tether", parts: parts("tether", holders(tethers, "segments", name)) },
+    { label: "pulley", value: holders(pulleys, "segments", name).join(", ") },
+  ];
+}
+
+function wingFacts({ topology, name }: FactSource): PartFact[] {
+  const { spanwise_stations: stations, canopy_faces: faces } = topology;
+  return [
+    { label: "stations", value: String(holders(stations, "wing", name).length) },
+    { label: "canopy faces", value: String(holders(faces, "wing", name).length) },
+  ];
+}
+
+function winchFacts({ topology, row }: FactSource): PartFact[] {
+  const { winches } = topology;
+  const point = columnValues<string>(winches, "winch_point")[row];
+  return [
+    { label: "tethers", parts: parts("tether", columnValues<NameList>(winches, "tethers")[row]) },
+    { label: "winch point", parts: parts("point", [point]) },
+    { label: "drum radius", value: withUnit(winches, "drum_radius", row) },
+    { label: "gear ratio", value: withUnit(winches, "gear_ratio", row) },
+  ];
+}
+
+function tetherFacts({ topology, name, row }: FactSource): PartFact[] {
+  const { tethers, winches } = topology;
+  const ends = ["start_point", "end_point"].map((end) => columnValues<string>(tethers, end)[row]);
+  const segments = columnValues<NameList>(tethers, "segments")[row];
+  return [
+    { label: "ends", parts: parts("point", ends) },
+    { label: "segments", value: String(segments.length) },
+    { label: "winch", parts: parts("winch", holders(winches, "tethers", name)) },
+  ];
+}
+
+const FACTS: Record<PartKind, (source: FactSource) => PartFact[]> = {
+  point: pointFacts,
+  segment: segmentFacts,
+  wing: wingFacts,
+  winch: winchFacts,
+  tether: tetherFacts,
+};
+
+/** What the structure document says about `part`, leaving out what it leaves empty. */
+export function partFacts(run: Run, part: Part): PartFact[] {
+  const row = partRow(run, part);
+  if (row < 0) return [];
+  return FACTS[part.kind]({ topology: run.topology, name: part.name, row }).filter(
+    ({ value, parts }) => (value ?? "") !== "" || (parts?.length ?? 0) > 0,
+  );
+}
+
+/** The rows of the segments `part` is drawn as: its own, or each of a tether's. */
+export function partSegments(run: Run, part: Part): number[] {
+  const row = partRow(run, part);
+  if (row < 0 || (part.kind !== "segment" && part.kind !== "tether")) return [];
+  if (part.kind === "segment") return [row];
+  const names = columnValues<string>(run.topology.segments, "name");
+  const members = columnValues<NameList>(run.topology.tethers, "segments")[row];
+  return members.map((member) => names.indexOf(member));
+}
+
+/** The indices of the points `part` is drawn as: its own, or a winch's winch point. */
+export function partPoints(run: Run, part: Part): number[] {
+  const row = partRow(run, part);
+  if (row < 0 || (part.kind !== "point" && part.kind !== "winch")) return [];
+  if (part.kind === "point") return [row];
+  const point = columnValues<string>(run.topology.winches, "winch_point")[row];
+  return [pointIndexOf(run, point, `winch ${part.name}`)];
 }
