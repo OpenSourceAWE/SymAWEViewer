@@ -53,6 +53,8 @@ run has.
 
 A run of more than one frame gets a scrubber and 2D panels under the 3D view, all on one time cursor: drag the scrubber, or click or drag in a panel, to seek. `frame` moves the cursor from the host and `onFrameChange` reports where it went. A run with no `time` column runs its cursor in frame numbers.
 
+A run of one frame, such as a steady state, has no timeline: the same quantities are listed under the 3D view as a table of name, value and unit.
+
 The panels open on winch force, apparent wind, AoA, heading/course, tether length and depower/steering, and the list above them adds the run's other named scalar and vector columns and generic variables. Angles are shown in degrees. The list leaves out a column holding only zeros or NaN, unless a default panel opens on it.
 
 Three kinds of quantity are computed rather than read:
@@ -71,7 +73,8 @@ The same data is yours to draw in your own layout:
 | `nearestFrame(times, time)` | the frame nearest a time |
 | `kiteAttitude(w, x, y, z)` | roll, pitch and yaw [rad] of a quaternion |
 | `run.table` | the run's Arrow table, for any column not listed |
-| `RunPanels`, `TimePanel` | the scrubber and panels, and one panel |
+| `RunPanels`, `TimePanel` | the scrubber and panels, or the table of a one-frame run, and one panel |
+| `run.provenance` | the run's `run` metadata key, decoded |
 
 For custom chrome, drop `Structure` into your own `Canvas`, with `highlight`
 and `onPick` for the groups:
@@ -99,6 +102,7 @@ registers none.
   frame, starting with one position per row of the `points` block. Slots after
   those are ignored.
 - Any other `KiteUtils` `sysstate.yaml` column feeds the panels.
+- Schema metadata key `run`, optional, says how the run was made, as a JSON object: its `kind` of job, and whatever else the producer records, such as the SymbolicAWEModels job runner's kite, parameters, job key, runner version with its commits, and wall time. The viewer shows it under an info button over the scene's top-right corner: the kind, then each plain entry, then a titled group for each object, its nested entries named by their path.
 
 The document is read against `schema/structure_schema.yml`, vendored from
 1-Bart-1/awesIO@99a36e2, awesIO 0.1.0; `pnpm generate` writes its TypeScript

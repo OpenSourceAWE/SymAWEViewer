@@ -1,6 +1,7 @@
 /** Colours of the viewer's own text, grid and plots, drawn over its dark scene. */
 export const CHROME = {
   background: "#07070b",
+  backdrop: "rgba(7, 7, 11, 0.85)",
   ink: "#d7dae1",
   muted: "#9aa0ad",
   warning: "#e0a44a",

@@ -1,3 +1,4 @@
+import { tableToIPC } from "apache-arrow";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
@@ -60,6 +61,33 @@ describe("RunPanels", () => {
 
   it("holds the cursor at the last frame of a run shorter than the frame it is given", () => {
     expect(render(1000)).toContain('value="60"');
+  });
+});
+
+describe("a run of one frame", () => {
+  const steady = decodeRun(tableToIPC(run.table.slice(0, 1), "file"));
+  const html = renderToStaticMarkup(<RunPanels run={steady} frame={0} onSeek={() => {}} />);
+
+  it("shows its numbers as a table instead of a scrubber and panels", () => {
+    expect(html).toContain("<table");
+    expect(html).not.toContain("<svg");
+    expect(html).not.toContain('type="range"');
+  });
+
+  it("gives every quantity a row with its value at that frame and its unit", () => {
+    const rows = html.match(/<tr>.*?<\/tr>/g)!;
+    expect(rows).toHaveLength(runQuantities(steady).length);
+    const winch = rows.find((row) => row.includes(">winch force<"))!;
+    expect(winch).toContain(`>${Number(quantities[0].values[0].toPrecision(4))}<`);
+    expect(winch).toContain(">N<");
+    expect(html).toContain(">roll<");
+  });
+
+  it("draws nothing for a structure with no log columns", () => {
+    const structure = decodeRun(runOf(example("v3_psm_structure")));
+    expect(renderToStaticMarkup(<RunPanels run={structure} frame={0} onSeek={() => {}} />)).toBe(
+      "",
+    );
   });
 });
 

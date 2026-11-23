@@ -47,6 +47,8 @@ const removeStyle: CSSProperties = {
 
 const barStyle: CSSProperties = { display: "flex", alignItems: "center", gap: "0.75rem" };
 
+const cellStyle: CSSProperties = { padding: "0 0.75rem 0 0", textAlign: "left", fontWeight: 400 };
+
 /** Round axis ticks inside `min..max`, at most about `count + 1` of them. */
 export function niceTicks(min: number, max: number, count: number): number[] {
   const rough = (max - min) / count || 1;
@@ -295,6 +297,23 @@ export function TimePanel({ quantities, times, frame, onSeek, onRemove }: TimePa
   );
 }
 
+/** Each quantity's value in a run's only frame, one row each. */
+function FrameTable({ quantities }: { quantities: Quantity[] }) {
+  return (
+    <table style={{ borderCollapse: "collapse" }}>
+      <tbody>
+        {quantities.map(({ id, label, unit, values }) => (
+          <tr key={id}>
+            <th scope="row" style={{ ...cellStyle, color: CHROME.ink }}>{label}</th>
+            <td style={{ ...cellStyle, textAlign: "right" }}>{formatValue(values[0])}</td>
+            <td style={cellStyle}>{unit}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export interface RunPanelsProps {
   run: Run;
   frame: number;
@@ -316,7 +335,10 @@ export function panelsOfRun(
   return choice?.run === run ? choice.panels : defaultPanels(quantities);
 }
 
-/** The scrubber and the 2D panels of a run, chosen from the columns it carries. */
+/**
+ * The scrubber and the 2D panels of a run, chosen from the columns it carries; for a run
+ * of one frame, a table of the same quantities instead.
+ */
 export function RunPanels({ run, frame, onSeek }: RunPanelsProps) {
   const quantities = useMemo(() => runQuantities(run), [run]);
   const times = useMemo(() => runTimes(run), [run]);
@@ -328,6 +350,15 @@ export function RunPanels({ run, frame, onSeek }: RunPanelsProps) {
   }, [panels, quantities]);
   const cursor = Math.min(frame, times.length - 1);
   const shown = new Set(panels.flat());
+
+  if (times.length === 1) {
+    if (quantities.length === 0) return null;
+    return (
+      <div style={{ ...stripStyle, columns: "18rem" }}>
+        <FrameTable quantities={quantities} />
+      </div>
+    );
+  }
 
   return (
     <div style={stripStyle}>
