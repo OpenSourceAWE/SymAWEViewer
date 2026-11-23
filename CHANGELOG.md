@@ -4,6 +4,7 @@
 
 ### Added
 
+- `SweepView` draws a chosen quantity at the last frame of each run of a sweep against each parameter that varies: one panel per parameter, with a curve for each combination of the others. Clicking a point calls `onOpen` with it. `sweepQuantities`, `sweepAxes` and `axisCurves` give the same data.
 - A run of more than one frame shows a scrubber and 2D panels under the 3D view, on one time cursor with it. The panels open on winch force, apparent wind, AoA, heading/course, tether length and depower/steering, and a list adds the run's other columns, roll, pitch and yaw, lift, drag, L/D and estimated CL and CD. Angles are in degrees.
 - `onFrameChange` reports the frame the cursor moved to; `runQuantities`, `defaultPanels`, `runTimes`, `nearestFrame`, `kiteAttitude`, `RunPanels`, `TimePanel` and `Run.table` give the same data for a custom layout.
 
