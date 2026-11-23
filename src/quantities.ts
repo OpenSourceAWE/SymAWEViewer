@@ -99,11 +99,64 @@ const PANEL_COLUMNS = [
 /** Air density the aero coefficients are referred to [kg/m³], ISA at sea level. */
 const AIR_DENSITY = 1.225;
 
+/** The share of a run's spring forces the colour scale spans; the largest rest saturate. */
+const SPRING_SCALE_SHARE = 0.999;
+
+/** The longest force arrow of a run, as a share of the run's scale. */
+const LONGEST_ARROW_SHARE = 0.06;
+
+/** The columns of a force held per slot of a frame, each drawn as arrows. */
+const ARROW_COLUMNS = [
+  { key: "aero", column: "aero_force", label: "aero force arrows" },
+  { key: "drag", column: "drag_force", label: "drag force arrows" },
+] as const;
+
+/** Each frame's force on every segment. */
+export interface SpringForces {
+  /** One row per frame, one force per segment [N], tension positive. */
+  rows: ArrayLike<number>[];
+  /** The most compressive force of the run [N]. */
+  min: number;
+  /** The most tensile force of the run [N]. */
+  max: number;
+  /** The force either side of zero at which the colour scale saturates [N]. */
+  limit: number;
+}
+
+/** A force of each slot of each frame, drawn as arrows from the slot's position. */
+export interface ForceArrows {
+  key: (typeof ARROW_COLUMNS)[number]["key"];
+  label: string;
+  /** The force's x, y and z rows, one row per frame, one value per slot [N]. */
+  force: ArrayLike<number>[][];
+  /** The X, Y and Z rows the force's slots are positioned by [m]. */
+  positions: ArrayLike<number>[][];
+  /** The largest magnitude of the force over the run [N]. */
+  largest: number;
+}
+
+/** The forces of a run that can be drawn on its structure. */
+export interface RunForces {
+  spring?: SpringForces;
+  arrows: ForceArrows[];
+}
+
 /** Each row of list column `name` as an array, or undefined without the column. */
 function listRows(run: Run, name: string): ArrayLike<number>[] | undefined {
   const column = run.table.getChild(name);
   if (!column || !DataType.isList(column.type)) return undefined;
   return Array.from({ length: run.table.numRows }, (_, frame) => column.get(frame).toArray());
+}
+
+/** The rows of each of `names`, or undefined where one is missing. */
+function vectorRows(run: Run, names: string[]): ArrayLike<number>[][] | undefined {
+  const rows = names.map((name) => listRows(run, name));
+  return rows.includes(undefined) ? undefined : (rows as ArrayLike<number>[][]);
+}
+
+/** The x, y and z rows of the per-slot force `column`, or undefined where one is missing. */
+function forceRows(run: Run, column: string): ArrayLike<number>[][] | undefined {
+  return vectorRows(run, XYZ.map((axis) => `${column}_${axis}`));
 }
 
 /** The series column `name` holds: one for a scalar, one per element for a list. */
@@ -224,13 +277,11 @@ function summed(rows: ArrayLike<number>[]): Float64Array {
 
 /** Lift and drag against the apparent wind, L/D, and CL and CD where a canopy gives an area. */
 function aeroQuantities(run: Run): Quantity[] {
-  const forces = ["aero_force_x", "aero_force_y", "aero_force_z"].map((name) =>
-    listRows(run, name),
-  );
+  const forces = forceRows(run, "aero_force");
   const wind = listRows(run, "v_wind_kite");
   const velocity = listRows(run, "vel_kite");
-  if (forces.includes(undefined) || !wind || !velocity) return [];
-  const [fx, fy, fz] = forces.map((rows) => summed(rows!));
+  if (!forces || !wind || !velocity) return [];
+  const [fx, fy, fz] = forces.map(summed);
 
   const frames = run.table.numRows;
   const lift = new Float64Array(frames);
@@ -273,6 +324,75 @@ export function runQuantities(run: Run): Quantity[] {
     if (values.some((value) => value !== 0 && !Number.isNaN(value))) kept.add(column);
   }
   return quantities.filter(({ column }) => kept.has(column));
+}
+
+/** `spring_force` where its rows index the segments and it holds a value besides zero and NaN. */
+function springForces(run: Run): SpringForces | undefined {
+  const rows = listRows(run, "spring_force");
+  const segments = run.topology.segments.data.length;
+  if (!rows?.every((row) => row.length === segments)) return undefined;
+  let [min, max] = [Infinity, -Infinity];
+  const known: number[] = [];
+  for (const row of rows) {
+    for (let i = 0; i < row.length; i++) {
+      if (!Number.isFinite(row[i])) continue;
+      known.push(Math.abs(row[i]));
+      min = Math.min(min, row[i]);
+      max = Math.max(max, row[i]);
+    }
+  }
+  const magnitudes = Float64Array.from(known).sort();
+  const largest = magnitudes.at(-1) ?? 0;
+  if (largest === 0) return undefined;
+  const limit = magnitudes[Math.floor(SPRING_SCALE_SHARE * (magnitudes.length - 1))] || largest;
+  return { rows, min, max, limit };
+}
+
+/** The largest force of `force` where every row has a slot per position; else 0. */
+function largestForce([x, y, z]: ArrayLike<number>[][], positions: ArrayLike<number>[][]) {
+  let largest = 0;
+  for (let frame = 0; frame < x.length; frame++) {
+    const slots = positions[0][frame].length;
+    if ([x, y, z].some((axis) => axis[frame].length !== slots)) return 0;
+    for (let slot = 0; slot < slots; slot++) {
+      const magnitude = Math.hypot(x[frame][slot], y[frame][slot], z[frame][slot]);
+      if (magnitude > largest) largest = magnitude;
+    }
+  }
+  return largest;
+}
+
+/** The forces of `run` that hold a value besides zero and NaN, and fit its segments or slots. */
+export function runForces(run: Run): RunForces {
+  const positions = vectorRows(run, ["X", "Y", "Z"])!;
+  const arrows = ARROW_COLUMNS.flatMap(({ key, column, label }) => {
+    const force = forceRows(run, column);
+    const largest = force ? largestForce(force, positions) : 0;
+    return largest > 0 ? [{ key, label, force: force!, positions, largest }] : [];
+  });
+  return { spring: springForces(run), arrows };
+}
+
+/** Metres per newton giving the longest arrow a fixed share of `span` [m]; 0 without arrows. */
+export function arrowScale({ arrows }: RunForces, span: number): number {
+  if (arrows.length === 0) return 0;
+  return (span * LONGEST_ARROW_SHARE) / Math.max(...arrows.map(({ largest }) => largest));
+}
+
+/**
+ * Flat `[x, y, z, ...]` start and end of an arrow per slot holding a force in `frame`,
+ * `scale` metres long per newton, in the simulation frame.
+ */
+export function arrowEnds(arrows: ForceArrows, frame: number, scale: number): Float32Array {
+  const [fx, fy, fz] = arrows.force.map((axis) => axis[frame]);
+  const [x, y, z] = arrows.positions.map((axis) => axis[frame]);
+  const ends: number[] = [];
+  for (let slot = 0; slot < x.length; slot++) {
+    if (!(Math.hypot(fx[slot], fy[slot], fz[slot]) > 0)) continue;
+    ends.push(x[slot], y[slot], z[slot]);
+    ends.push(x[slot] + fx[slot] * scale, y[slot] + fy[slot] * scale, z[slot] + fz[slot] * scale);
+  }
+  return Float32Array.from(ends);
 }
 
 /** The panels a run opens on, each a list of quantity ids sharing an axis; empty ones dropped. */

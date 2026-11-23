@@ -1,10 +1,13 @@
 export { SymAWEViewer, type SymAWEViewerProps } from "./SymAWEViewer";
 export {
   DEFAULT_PALETTE,
+  ForceArrowsView,
   Structure,
+  forceColors,
   framing,
   Z_UP_TO_Y_UP,
   resolvePalette,
+  type ForceArrowsViewProps,
   type Palette,
   type StructureProps,
 } from "./Structure";
@@ -19,12 +22,24 @@ export {
   type SegmentRole,
 } from "./parts";
 export {
+  ForceControls,
+  NO_FORCES_SHOWN,
+  type ForceControlsProps,
+  type ForcesShown,
+} from "./ForceControls";
+export {
+  arrowEnds,
+  arrowScale,
   defaultPanels,
   kiteAttitude,
   nearestFrame,
+  runForces,
   runQuantities,
   runTimes,
+  type ForceArrows,
   type Quantity,
+  type RunForces,
+  type SpringForces,
 } from "./quantities";
 export { RunPanels, TimePanel, type RunPanelsProps, type TimePanelProps } from "./TimePanel";
 export {

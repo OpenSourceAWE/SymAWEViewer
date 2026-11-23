@@ -29,20 +29,29 @@ export function example(name: string): StructureDocument {
   return parse(new TextDecoder().decode(fixture(`${name}.yml`)));
 }
 
+/** A list column holding one row per entry of `rows`. */
+function listColumn(rows: number[][]) {
+  return vectorFromArray(rows, new List(new Field("item", new Float64())));
+}
+
 /**
  * An uncompressed run of one frame holding `document` at its written positions,
- * or at `positions` when given.
+ * or at `positions` when given, with each of `columns` as a list column of one row.
  */
 export function runOf(
   document: StructureDocument,
   positions = columnValues<Vec3>(document.points, "pos_ENU"),
+  columns: Record<string, number[]> = {},
 ): Uint8Array {
-  const axis = (i: number) =>
-    vectorFromArray(
-      [positions.map((position) => position[i])],
-      new List(new Field("item", new Float64())),
-    );
-  const table = new Table({ X: axis(0), Y: axis(1), Z: axis(2) });
+  const axis = (i: number) => listColumn([positions.map((position) => position[i])]);
+  const table = new Table({
+    X: axis(0),
+    Y: axis(1),
+    Z: axis(2),
+    ...Object.fromEntries(
+      Object.entries(columns).map(([name, row]) => [name, listColumn([row])]),
+    ),
+  });
   table.schema.metadata.set("topology", JSON.stringify(document));
   return tableToIPC(table, "file");
 }
