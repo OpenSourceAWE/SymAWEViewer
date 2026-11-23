@@ -14,14 +14,7 @@ import {
   type Quantity,
 } from "./quantities";
 import type { Run } from "./topology";
-
-const SERIES_COLORS = ["#3987e5", "#d95926", "#199e70", "#c98500"];
-/** Text colour of what a reader looks for. */
-export const INK = "#d7dae1";
-/** Text colour of labels and axes. */
-export const MUTED = "#9aa0ad";
-const GRID = "#1b2030";
-const CURSOR = "#f2f3f5";
+import { CHROME, monospace, SERIES_COLORS } from "./chrome";
 
 const seriesColor = (line: number) => SERIES_COLORS[line % SERIES_COLORS.length];
 
@@ -29,15 +22,13 @@ const PLOT_HEIGHT = 96;
 const MARGIN = { left: 44, right: 8, top: 6, bottom: 18 };
 const DEFAULT_WIDTH = 400;
 
-const monospace = "12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace";
-
 const stripStyle: CSSProperties = {
   flex: "0 1 auto",
   maxHeight: "45%",
   overflowY: "auto",
   padding: "0.5rem 0.75rem",
-  color: MUTED,
-  font: monospace,
+  color: CHROME.muted,
+  font: monospace(12, 1.5),
 };
 
 const gridStyle: CSSProperties = {
@@ -49,7 +40,7 @@ const gridStyle: CSSProperties = {
 const removeStyle: CSSProperties = {
   background: "none",
   border: 0,
-  color: MUTED,
+  color: CHROME.muted,
   cursor: "pointer",
   font: "inherit",
 };
@@ -149,7 +140,7 @@ function PanelReadout({ quantities, read, onRemove }: {
         {quantities.map((quantity, line) => (
           <span key={quantity.id} style={{ marginRight: "0.75rem", whiteSpace: "nowrap" }}>
             {quantities.length > 1 && <span style={{ color: seriesColor(line) }}>━ </span>}
-            <span style={{ color: INK }}>{quantity.label}</span>{" "}
+            <span style={{ color: CHROME.ink }}>{quantity.label}</span>{" "}
             {formatValue(quantity.values[read])}
           </span>
         ))}
@@ -181,8 +172,14 @@ function PanelAxes({ valueTicks, timeTicks, x, y, right }: {
     <>
       {valueTicks.map((tick) => (
         <g key={tick}>
-          <line x1={MARGIN.left} x2={right} y1={y(tick)} y2={y(tick)} stroke={GRID} />
-          <text x={MARGIN.left - 4} y={y(tick) + 3} textAnchor="end" fontSize={10} fill={MUTED}>
+          <line x1={MARGIN.left} x2={right} y1={y(tick)} y2={y(tick)} stroke={CHROME.grid} />
+          <text
+            x={MARGIN.left - 4}
+            y={y(tick) + 3}
+            textAnchor="end"
+            fontSize={10}
+            fill={CHROME.muted}
+          >
             {formatValue(tick)}
           </text>
         </g>
@@ -194,7 +191,7 @@ function PanelAxes({ valueTicks, timeTicks, x, y, right }: {
           y={PLOT_HEIGHT - 5}
           textAnchor="middle"
           fontSize={10}
-          fill={MUTED}
+          fill={CHROME.muted}
         >
           {formatValue(tick)}
         </text>
@@ -283,7 +280,7 @@ export function TimePanel({ quantities, times, frame, onSeek, onRemove }: TimePa
             x2={x(times[hovered])}
             y1={MARGIN.top}
             y2={bottom}
-            stroke={MUTED}
+            stroke={CHROME.muted}
             strokeDasharray="2 3"
           />
         )}
@@ -293,7 +290,7 @@ export function TimePanel({ quantities, times, frame, onSeek, onRemove }: TimePa
           x2={x(times[frame])}
           y1={MARGIN.top}
           y2={bottom}
-          stroke={CURSOR}
+          stroke={CHROME.cursor}
         />
       </svg>
     </div>
@@ -307,7 +304,7 @@ function FrameTable({ quantities }: { quantities: Quantity[] }) {
       <tbody>
         {quantities.map(({ id, label, unit, values }) => (
           <tr key={id}>
-            <th scope="row" style={{ ...cellStyle, color: INK }}>{label}</th>
+            <th scope="row" style={{ ...cellStyle, color: CHROME.ink }}>{label}</th>
             <td style={{ ...cellStyle, textAlign: "right" }}>{formatValue(values[0])}</td>
             <td style={cellStyle}>{unit}</td>
           </tr>
@@ -373,16 +370,21 @@ export function RunPanels({ run, frame, onSeek }: RunPanelsProps) {
           max={times.length - 1}
           value={cursor}
           onChange={(event) => onSeek(Number(event.target.value))}
-          style={{ flex: 1, minWidth: 0, accentColor: CURSOR }}
+          style={{ flex: 1, minWidth: 0, accentColor: CHROME.cursor }}
         />
-        <span style={{ color: INK, whiteSpace: "nowrap" }}>
+        <span style={{ color: CHROME.ink, whiteSpace: "nowrap" }}>
           {run.table.getChild("time") ? `${times[cursor].toFixed(2)} s` : `frame ${cursor}`}
         </span>
         <select
           aria-label="add a panel"
           value=""
           onChange={(event) => setChoice({ run, panels: [...panels, [event.target.value]] })}
-          style={{ maxWidth: "9rem", background: "transparent", color: MUTED, font: "inherit" }}
+          style={{
+            maxWidth: "9rem",
+            background: "transparent",
+            color: CHROME.muted,
+            font: "inherit",
+          }}
         >
           <option value="" disabled>
             add a panel…

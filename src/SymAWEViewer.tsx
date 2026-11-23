@@ -8,7 +8,8 @@ import {
 import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
 import { framing, resolvePalette, Structure, type Palette } from "./Structure";
-import { INK, MUTED, RunPanels } from "./TimePanel";
+import { CHROME, monospace } from "./chrome";
+import { RunPanels } from "./TimePanel";
 import {
   anchorPoints,
   nextGroup,
@@ -53,7 +54,7 @@ const centred: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  font: "13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace",
+  font: monospace(13, 1.6),
 };
 
 const overlayStyle: CSSProperties = {
@@ -61,8 +62,8 @@ const overlayStyle: CSSProperties = {
   top: "1.5rem",
   left: "1.5rem",
   pointerEvents: "none",
-  color: MUTED,
-  font: "12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace",
+  color: CHROME.muted,
+  font: monospace(12, 1.7),
 };
 
 const infoStyle: CSSProperties = {
@@ -79,7 +80,7 @@ const infoStyle: CSSProperties = {
 const infoContentStyle: CSSProperties = {
   marginTop: "0.4rem",
   padding: "0.4rem 0.6rem",
-  background: "rgba(7, 7, 11, 0.85)",
+  background: CHROME.backdrop,
 };
 
 const infoButtonStyle: CSSProperties = {
@@ -87,9 +88,9 @@ const infoButtonStyle: CSSProperties = {
   width: "1.5em",
   lineHeight: "1.5em",
   textAlign: "center",
-  border: `1px solid ${MUTED}`,
+  border: `1px solid ${CHROME.muted}`,
   borderRadius: "50%",
-  color: INK,
+  color: CHROME.ink,
   cursor: "pointer",
 };
 
@@ -158,7 +159,7 @@ function SettingsRows({ title, settings }: {
       {rows.map(([name, value]) => (
         <tr key={name}>
           <th scope="row" style={nameCellStyle}>{name}</th>
-          <td style={{ color: INK, verticalAlign: "top" }}>{formatSetting(value)}</td>
+          <td style={{ color: CHROME.ink, verticalAlign: "top" }}>{formatSetting(value)}</td>
         </tr>
       ))}
     </tbody>
@@ -181,7 +182,7 @@ export function RunInfo({ provenance }: { provenance: RunProvenance }) {
         i
       </summary>
       <div style={infoContentStyle}>
-        {kind && <p style={{ color: INK, margin: 0 }}>{kind}</p>}
+        {kind && <p style={{ color: CHROME.ink, margin: 0 }}>{kind}</p>}
         <table style={infoTableStyle}>
           <SettingsRows settings={Object.fromEntries(plain)} />
           {groups.map(({ title, settings }) => (
@@ -203,7 +204,7 @@ export function SymAWEViewer({
   fetchOptions,
   frame = 0,
   onFrameChange,
-  background = "#07070b",
+  background = CHROME.background,
   palette,
   showOverlay = true,
   className,
@@ -272,8 +273,8 @@ export function SymAWEViewer({
     return (
       <div ref={box} className={className} style={{ ...centred, ...style }}>
         <div style={{ maxWidth: "36rem", padding: "2rem" }}>
-          <p style={{ color: "#e0a44a", margin: 0 }}>failed to load run</p>
-          <p style={{ color: "#c8ccd4", marginTop: "0.75rem" }}>{error}</p>
+          <p style={{ color: CHROME.warning, margin: 0 }}>failed to load run</p>
+          <p style={{ color: CHROME.ink, marginTop: "0.75rem" }}>{error}</p>
         </div>
       </div>
     );
@@ -282,7 +283,7 @@ export function SymAWEViewer({
   if (!run) {
     return (
       <div ref={box} className={className} style={{ ...centred, ...style }}>
-        <p style={{ color: MUTED, margin: 0 }}>loading…</p>
+        <p style={{ color: CHROME.muted, margin: 0 }}>loading…</p>
       </div>
     );
   }
@@ -333,8 +334,8 @@ export function SymAWEViewer({
             args={[span * 4, span * 4]}
             cellSize={10}
             sectionSize={50}
-            cellColor="#1b2030"
-            sectionColor="#2b3348"
+            cellColor={CHROME.grid}
+            sectionColor={CHROME.gridSection}
             fadeDistance={span * 6}
             infiniteGrid
           />
@@ -343,7 +344,7 @@ export function SymAWEViewer({
 
         {showOverlay && (
           <div style={overlayStyle}>
-            <p style={{ color: INK, margin: 0 }}>{meta.name}</p>
+            <p style={{ color: CHROME.ink, margin: 0 }}>{meta.name}</p>
             <p style={{ margin: 0 }}>{meta.note}</p>
             <p style={{ margin: "0.6rem 0 0" }}>
               {run.topology.points.data.length} points
