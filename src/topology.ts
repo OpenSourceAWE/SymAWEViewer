@@ -1,6 +1,11 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
-import { CompressionType, MessageReader, tableFromIPC } from "apache-arrow";
+import {
+  CompressionType,
+  MessageReader,
+  tableFromIPC,
+  type Table as ArrowTable,
+} from "apache-arrow";
 import {
   BLOCK_COLUMNS,
   REQUIRED_BLOCKS,
@@ -31,6 +36,8 @@ export interface Run {
   frames: Frame[];
   /** Point name to its index into every frame's coordinate arrays. */
   pointIndex: Map<string, number>;
+  /** The whole log, one row per frame, for its columns beyond the positions. */
+  table: ArrowTable;
 }
 
 /** The `awesIO_version` of the vendored `structure_schema.yml`. */
@@ -157,7 +164,8 @@ export function connectivitySha(topology: Topology, source = "topology"): string
  *
  * Refuses a compressed file, an unknown major `awesIO_version`, a document missing
  * a required block, a `connectivity_sha` that disagrees with the blocks, and frames
- * that do not carry one position per point. `source` only labels error messages.
+ * with fewer positions than points. A frame holds its points in its first slots; the
+ * slots a log keeps behind them are not read. `source` only labels error messages.
  */
 export function decodeRun(
   bytes: ArrayBuffer | Uint8Array,
@@ -196,28 +204,30 @@ export function decodeRun(
     throw new Error(`${source} is missing X/Y/Z coordinate columns`);
   }
 
+  if (table.numRows === 0) {
+    throw new Error(`${source} contains no frames`);
+  }
+  const pointCount = topology.points.data.length;
+  if (xs.get(0).length < pointCount) {
+    throw new Error(
+      `${source} frames carry ${xs.get(0).length} positions but its topology ` +
+        `has ${pointCount} points`,
+    );
+  }
+  const pointsOf = (row: ArrayLike<number>) => Float32Array.from(row).slice(0, pointCount);
   const frames: Frame[] = [];
   for (let i = 0; i < table.numRows; i++) {
     frames.push({
-      x: Float32Array.from(xs.get(i) as ArrayLike<number>),
-      y: Float32Array.from(ys.get(i) as ArrayLike<number>),
-      z: Float32Array.from(zs.get(i) as ArrayLike<number>),
+      x: pointsOf(xs.get(i).toArray()),
+      y: pointsOf(ys.get(i).toArray()),
+      z: pointsOf(zs.get(i).toArray()),
     });
-  }
-  if (frames.length === 0) {
-    throw new Error(`${source} contains no frames`);
-  }
-  if (frames[0].x.length !== topology.points.data.length) {
-    throw new Error(
-      `${source} frames carry ${frames[0].x.length} positions but its topology ` +
-        `has ${topology.points.data.length} points`,
-    );
   }
 
   const names = columnValues<string>(topology.points, "name");
   const pointIndex = new Map(names.map((name, i) => [name, i]));
 
-  return { topology, frames, pointIndex };
+  return { topology, frames, pointIndex, table };
 }
 
 /**

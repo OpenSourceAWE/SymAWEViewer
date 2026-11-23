@@ -11,7 +11,7 @@ import {
   type Topology,
 } from "../src/topology";
 import type { NamePair, Vec3 } from "../src/generated/structure";
-import { EXAMPLES, example, fixture, runOf, withoutColumn } from "./fixtures";
+import { EXAMPLES, V3_RUN, example, fixture, runOf, withoutColumn } from "./fixtures";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -109,6 +109,14 @@ describe("decodeRun", () => {
     expect(() => decodeRun(runOf(document, positions), "psm.arrow")).toThrow(
       /psm\.arrow frames carry \d+ positions but its topology has \d+ points/,
     );
+  });
+
+  it("reads the first n_points slots of a real log's frames as the points", () => {
+    const run = decodeRun(fixture(V3_RUN));
+    expect(run.frames).toHaveLength(61);
+    expect(run.frames[0].x).toHaveLength(44);
+    expect(run.frames[0].x[0]).toBeCloseTo(74.2, 1);
+    expect(run.topology.segments.data).toHaveLength(95);
   });
 
   it("says in plain words that an LZ4-compressed run cannot be read", () => {
