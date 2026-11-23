@@ -42,14 +42,14 @@ export interface Run {
   provenance?: RunProvenance;
 }
 
-/** The `run` key of a run's Arrow schema metadata: what produced it, and from what. */
+/**
+ * The `run` key of a run's Arrow schema metadata: what kind of job produced it, and
+ * whatever else its producer records, such as its parameters and the commits it ran from.
+ */
 export interface RunProvenance {
-  /** What produced the run, such as a simulation or a flight log. */
+  /** The kind of job, such as a steady state, a simulation or a sweep point. */
   kind?: string;
-  /** The inputs it was produced with, by name. */
-  parameters?: Record<string, unknown>;
-  /** The commit each repository it was produced from stood at, by repository. */
-  commits?: Record<string, string>;
+  [entry: string]: unknown;
 }
 
 /** The `awesIO_version` of the vendored `structure_schema.yml`. */
@@ -176,9 +176,9 @@ export function connectivitySha(topology: Topology, source = "topology"): string
  *
  * Refuses a compressed file, an unknown major `awesIO_version`, a document missing
  * a required block, a `connectivity_sha` that disagrees with the blocks, frames with
- * fewer positions than points, and `run` metadata that is not JSON. A frame holds its
- * points in its first slots; the slots a log keeps behind them are not read. `source`
- * only labels error messages.
+ * fewer positions than points, and `run` metadata that is not a JSON object. A frame
+ * holds its points in its first slots; the slots a log keeps behind them are not read.
+ * `source` only labels error messages.
  */
 export function decodeRun(
   bytes: ArrayBuffer | Uint8Array,
@@ -247,11 +247,23 @@ export function decodeRun(
 function runProvenance(table: ArrowTable, source: string): RunProvenance | undefined {
   const raw = table.schema.metadata.get("run");
   if (raw === undefined) return undefined;
+  let provenance: unknown;
   try {
-    return JSON.parse(raw) as RunProvenance;
+    provenance = JSON.parse(raw);
   } catch {
-    throw new Error(`${source} carries "run" metadata that is not JSON: ${raw.slice(0, 80)}`);
+    provenance = undefined;
   }
+  if (!isRecord(provenance)) {
+    throw new Error(
+      `${source} carries "run" metadata that is not a JSON object: ${raw.slice(0, 80)}`,
+    );
+  }
+  return provenance;
+}
+
+/** Whether `value` is a JSON object rather than an array, a scalar or null. */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**

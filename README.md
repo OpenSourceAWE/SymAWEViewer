@@ -102,7 +102,7 @@ registers none.
   frame, starting with one position per row of the `points` block. Slots after
   those are ignored.
 - Any other `KiteUtils` `sysstate.yaml` column feeds the panels.
-- Schema metadata key `run`, optional, says how the run was made, as JSON `{"kind": …, "parameters": {…}, "commits": {"<repository>": "<sha>"}}`. The viewer shows it under an info button over the scene's top-right corner.
+- Schema metadata key `run`, optional, says how the run was made, as a JSON object: its `kind` of job, and whatever else the producer records, such as the SymbolicAWEModels job runner's kite, parameters, job key, runner version with its commits, and wall time. The viewer shows it under an info button over the scene's top-right corner: the kind, then each plain entry, then a titled group for each object, its nested entries named by their path.
 
 The document is read against `schema/structure_schema.yml`, vendored from
 1-Bart-1/awesIO@99a36e2, awesIO 0.1.0; `pnpm generate` writes its TypeScript

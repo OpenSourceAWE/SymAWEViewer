@@ -17,7 +17,7 @@ import {
   type PointPick,
   type SegmentRole,
 } from "./parts";
-import { decodeRun, loadRun, type Run, type RunProvenance } from "./topology";
+import { decodeRun, isRecord, loadRun, type Run, type RunProvenance } from "./topology";
 
 export interface SymAWEViewerProps {
   /** URL of an exported `.arrow` run. Ignored when `data` is given. */
@@ -69,9 +69,17 @@ const infoStyle: CSSProperties = {
   ...overlayStyle,
   left: "auto",
   right: "1.5rem",
-  maxWidth: "24rem",
+  maxWidth: "min(24rem, calc(100% - 3rem))",
+  maxHeight: "calc(100% - 3rem)",
+  overflowY: "auto",
   textAlign: "right",
   pointerEvents: "auto",
+};
+
+const infoContentStyle: CSSProperties = {
+  marginTop: "0.4rem",
+  padding: "0.4rem 0.6rem",
+  background: "rgba(7, 7, 11, 0.85)",
 };
 
 const infoButtonStyle: CSSProperties = {
@@ -83,6 +91,13 @@ const infoButtonStyle: CSSProperties = {
   borderRadius: "50%",
   color: INK,
   cursor: "pointer",
+};
+
+const nameCellStyle: CSSProperties = {
+  fontWeight: 400,
+  padding: "0 0.75rem 0 1ch",
+  overflowWrap: "anywhere",
+  verticalAlign: "top",
 };
 
 const infoTableStyle: CSSProperties = {
@@ -112,47 +127,68 @@ function Swatch({ color, glyph = "━━", label }: SwatchProps) {
   );
 }
 
-/** A parameter's value as written: a string as it is, anything else as JSON. */
+/** A value as written: a string as it is, anything else as JSON. */
 function formatSetting(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-/** A titled group of name–value rows; nothing where `settings` is empty. */
-function SettingsRows({ title, settings = {} }: {
-  title: string;
-  settings?: Record<string, unknown>;
+/** The entries of `settings` with a nested object's entries named by their path in it. */
+function flatEntries(settings: Record<string, unknown>, prefix = ""): [string, unknown][] {
+  return Object.entries(settings).flatMap(([name, value]): [string, unknown][] =>
+    isRecord(value) ? flatEntries(value, `${prefix}${name}/`) : [[`${prefix}${name}`, value]],
+  );
+}
+
+/** A group of name–value rows under `title`, if given; nothing where `settings` is empty. */
+function SettingsRows({ title, settings }: {
+  title?: string;
+  settings: Record<string, unknown>;
 }) {
-  const rows = Object.entries(settings);
+  const rows = flatEntries(settings);
   if (rows.length === 0) return null;
   return (
     <tbody>
-      <tr>
-        <th colSpan={2} scope="colgroup" style={{ fontWeight: 400, paddingTop: "0.6rem" }}>
-          {title}
-        </th>
-      </tr>
+      {title && (
+        <tr>
+          <th colSpan={2} scope="colgroup" style={{ fontWeight: 400, paddingTop: "0.6rem" }}>
+            {title}
+          </th>
+        </tr>
+      )}
       {rows.map(([name, value]) => (
         <tr key={name}>
-          <th scope="row" style={{ fontWeight: 400, padding: "0 0.75rem 0 1ch" }}>{name}</th>
-          <td style={{ color: INK }}>{formatSetting(value)}</td>
+          <th scope="row" style={nameCellStyle}>{name}</th>
+          <td style={{ color: INK, verticalAlign: "top" }}>{formatSetting(value)}</td>
         </tr>
       ))}
     </tbody>
   );
 }
 
-/** An info button over the scene's top-right corner opening what produced the run. */
+/**
+ * An info button over the scene's top-right corner opening what produced the run: its
+ * kind, its other plain entries, and a titled group for each object, such as its parameters.
+ */
 export function RunInfo({ provenance }: { provenance: RunProvenance }) {
+  const { kind, ...entries } = provenance;
+  const plain = Object.entries(entries).filter(([, value]) => !isRecord(value));
+  const groups = Object.entries(entries).flatMap(([title, value]) =>
+    isRecord(value) ? [{ title, settings: value }] : [],
+  );
   return (
     <details style={infoStyle}>
       <summary aria-label="how this run was made" style={infoButtonStyle}>
         i
       </summary>
-      {provenance.kind && <p style={{ color: INK, margin: 0 }}>{provenance.kind}</p>}
-      <table style={infoTableStyle}>
-        <SettingsRows title="parameters" settings={provenance.parameters} />
-        <SettingsRows title="commits" settings={provenance.commits} />
-      </table>
+      <div style={infoContentStyle}>
+        {kind && <p style={{ color: INK, margin: 0 }}>{kind}</p>}
+        <table style={infoTableStyle}>
+          <SettingsRows settings={Object.fromEntries(plain)} />
+          {groups.map(({ title, settings }) => (
+            <SettingsRows key={title} title={title} settings={settings} />
+          ))}
+        </table>
+      </div>
     </details>
   );
 }
