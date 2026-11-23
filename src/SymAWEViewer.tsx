@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Canvas } from "@react-three/fiber";
 import { framing, resolvePalette, Structure, type Palette } from "./Structure";
+import { CHROME, monospace } from "./chrome";
 import { plainButton, plainSelect, RunPanels, type PanelsMode } from "./TimePanel";
 import { FlightReadout } from "./Readout";
 import {
@@ -77,7 +78,7 @@ const centred: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  font: "13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace",
+  font: monospace(13, 1.6),
 };
 
 const overlayStyle: CSSProperties = {
@@ -85,7 +86,7 @@ const overlayStyle: CSSProperties = {
   top: "1.5rem",
   left: "1.5rem",
   pointerEvents: "none",
-  font: "12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace",
+  font: monospace(12, 1.7),
 };
 
 const ROLE_LABELS: Record<SegmentRole, string> = {
@@ -353,7 +354,7 @@ export function SymAWEViewer({
   src,
   data,
   fetchOptions,
-  background = "#07070b",
+  background = CHROME.background,
   theme,
   className,
   style,
@@ -417,7 +418,7 @@ export function SymAWEViewer({
     return (
       <div ref={box} className={className} style={{ ...centred, ...style }}>
         <div style={{ maxWidth: "36rem", padding: "2rem" }}>
-          <p style={{ color: "#e0a44a", margin: 0 }}>failed to load run</p>
+          <p style={{ color: CHROME.warning, margin: 0 }}>failed to load run</p>
           <p style={{ color: ink, marginTop: "0.75rem" }}>{error}</p>
         </div>
       </div>

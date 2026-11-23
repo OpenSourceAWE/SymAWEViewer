@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { monospace } from "./chrome";
 import type { Quantity } from "./quantities";
 
 interface ReadoutLine {
@@ -33,7 +34,7 @@ const readoutStyle: CSSProperties = {
   margin: 0,
   pointerEvents: "none",
   textAlign: "right",
-  font: "12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace",
+  font: monospace(12, 1.7),
 };
 
 /** Kite speed, height, winch force and time at `frame`, those the run carries. */

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useThree } from "@react-three/fiber";
 import { Grid, Line, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
+import { CHROME } from "./chrome";
 import { Z_UP_TO_Y_UP } from "./Structure";
 
 /** The colours and lighting of the scene around the structure. */
@@ -25,13 +26,13 @@ export interface SceneTheme {
 /** The scene the viewer draws where its `theme` names nothing else. */
 export const DEFAULT_SCENE: SceneTheme = {
   ground: null,
-  gridCell: "#1b2030",
-  gridSection: "#2b3348",
+  gridCell: CHROME.grid,
+  gridSection: CHROME.gridSection,
   fog: null,
   trail: "#ff7a45",
   unlit: false,
-  ink: "#d7dae1",
-  muted: "#9aa0ad",
+  ink: CHROME.ink,
+  muted: CHROME.muted,
 };
 
 /** `theme` over `DEFAULT_SCENE`. */
