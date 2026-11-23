@@ -1,7 +1,8 @@
 import type { CSSProperties } from "react";
 import { partFacts, type Part } from "./parts";
 import type { Quantity } from "./quantities";
-import { buttonStyle, formatValue, INK, MUTED, monospace } from "./TimePanel";
+import { CHROME, monospace } from "./chrome";
+import { buttonStyle, formatValue } from "./TimePanel";
 import type { Run } from "./topology";
 
 /** The part to show, its quantities, the frame they are read at, and what pinning reports. */
@@ -33,9 +34,9 @@ const boxStyle: CSSProperties = {
   overflowY: "auto",
   padding: "0.4rem 0.6rem",
   borderRadius: 4,
-  background: "rgba(7, 7, 11, 0.85)",
-  color: MUTED,
-  font: monospace,
+  background: `${CHROME.background}d9`,
+  color: CHROME.muted,
+  font: monospace(12, 1.5),
 };
 
 const tableStyle: CSSProperties = {
@@ -48,7 +49,7 @@ const linkStyle: CSSProperties = {
   ...buttonStyle,
   padding: 0,
   marginRight: "0.5rem",
-  color: INK,
+  color: CHROME.ink,
   textDecoration: "underline",
 };
 
@@ -65,7 +66,7 @@ export function Inspector({
 }: InspectorProps) {
   return (
     <div style={boxStyle} data-inspector={`${part.kind} ${part.name}`}>
-      <div style={{ display: "flex", justifyContent: "space-between", color: INK }}>
+      <div style={{ display: "flex", justifyContent: "space-between", color: CHROME.ink }}>
         <span>
           {part.kind} {part.name}
         </span>
@@ -94,7 +95,9 @@ export function Inspector({
           {quantities.map(({ id, label, unit, values }) => (
             <tr key={id}>
               <td>{label}</td>
-              <td style={{ color: INK, textAlign: "right" }}>{formatValue(values[frame])}</td>
+              <td style={{ color: CHROME.ink, textAlign: "right" }}>
+                {formatValue(values[frame])}
+              </td>
               <td style={{ paddingLeft: "0.4rem" }}>{unit}</td>
               {onPin && (
                 <td style={{ textAlign: "right" }}>

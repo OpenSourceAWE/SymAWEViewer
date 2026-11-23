@@ -17,6 +17,7 @@ import {
   Structure,
   type Palette,
 } from "./Structure";
+import { CHROME, monospace } from "./chrome";
 import { Inspector, INSPECTOR_WIDTH } from "./Inspector";
 import { panelsOfRun, RunPanels, type PanelChoice } from "./TimePanel";
 import {
@@ -72,7 +73,7 @@ const centred: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  font: "13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace",
+  font: monospace(13, 1.6),
 };
 
 const overlayStyle: CSSProperties = {
@@ -81,8 +82,8 @@ const overlayStyle: CSSProperties = {
   left: "1.5rem",
   maxWidth: `calc(100% - ${INSPECTOR_WIDTH} - 3.5rem)`,
   pointerEvents: "none",
-  color: "#9aa0ad",
-  font: "12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace",
+  color: CHROME.muted,
+  font: monospace(12, 1.7),
 };
 
 interface SwatchProps {
@@ -122,7 +123,7 @@ export function SymAWEViewer({
   fetchOptions,
   frame = 0,
   onFrameChange,
-  background = "#07070b",
+  background = CHROME.background,
   palette,
   showOverlay = true,
   className,
@@ -222,8 +223,8 @@ export function SymAWEViewer({
     return (
       <div ref={box} className={className} style={{ ...centred, ...style }}>
         <div style={{ maxWidth: "36rem", padding: "2rem" }}>
-          <p style={{ color: "#e0a44a", margin: 0 }}>failed to load run</p>
-          <p style={{ color: "#c8ccd4", marginTop: "0.75rem" }}>{error}</p>
+          <p style={{ color: CHROME.warning, margin: 0 }}>failed to load run</p>
+          <p style={{ color: CHROME.ink, marginTop: "0.75rem" }}>{error}</p>
         </div>
       </div>
     );
@@ -232,7 +233,7 @@ export function SymAWEViewer({
   if (!run || !scene) {
     return (
       <div ref={box} className={className} style={{ ...centred, ...style }}>
-        <p style={{ color: "#9aa0ad", margin: 0 }}>loading…</p>
+        <p style={{ color: CHROME.muted, margin: 0 }}>loading…</p>
       </div>
     );
   }
@@ -291,8 +292,8 @@ export function SymAWEViewer({
             args={[span * 4, span * 4]}
             cellSize={10}
             sectionSize={50}
-            cellColor="#1b2030"
-            sectionColor="#2b3348"
+            cellColor={CHROME.grid}
+            sectionColor={CHROME.gridSection}
             fadeDistance={span * 6}
             infiniteGrid
           />
@@ -301,7 +302,7 @@ export function SymAWEViewer({
 
         {showOverlay && (
           <div style={overlayStyle}>
-            <p style={{ color: "#d7dae1", margin: 0 }}>{meta.name}</p>
+            <p style={{ color: CHROME.ink, margin: 0 }}>{meta.name}</p>
             <p style={{ margin: 0 }}>{meta.note}</p>
             <p style={{ margin: "0.6rem 0 0" }}>
               {run.topology.points.data.length} points
