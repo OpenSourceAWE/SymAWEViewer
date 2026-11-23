@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   Field,
   Float64,
@@ -22,7 +23,7 @@ export const V3_RUN = "v3_psm_sim.arrow";
 export const EXAMPLES = ["v3_psm_structure", "v3_beam_structure"];
 
 export function fixture(name: string): Uint8Array {
-  return readFileSync(new URL(`fixtures/${name}`, import.meta.url));
+  return readFileSync(join(import.meta.dirname, "fixtures", name));
 }
 
 export function example(name: string): StructureDocument {

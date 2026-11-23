@@ -20,7 +20,7 @@
     "generate": "node scripts/generate-types.mjs",
     "build": "pnpm generate && vite build && tsc -p tsconfig.build.json",
     "typecheck": "pnpm generate && tsc -p tsconfig.build.json --noEmit && tsc --noEmit",
-    "test": "pnpm generate && vitest run --bail 1",
+    "test": "pnpm generate && vitest run",
     "prepare": "pnpm build"
   },
   "dependencies": {
@@ -42,6 +42,7 @@
     "@types/react-dom": "^19.0.4",
     "@types/three": "^0.174.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "happy-dom": "^20.14.6",
     "json-schema-to-typescript": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

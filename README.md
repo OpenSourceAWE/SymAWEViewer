@@ -80,6 +80,27 @@ and `onPick` for the groups:
 import { framing, loadRun, Structure } from "@symawe/viewer";
 ```
 
+## Sweeps
+
+`SweepView` compares the runs of a sweep. Hand it the points, each the parameter values a run was made at and that run, already loaded: it reads no manifest and fetches nothing.
+
+```tsx
+import { loadRun, SweepView } from "@symawe/viewer";
+
+const points = await Promise.all(
+  manifest.map(async ({ parameters, src }) => ({ parameters, run: await loadRun(src) })),
+);
+<SweepView points={points} onOpen={(point, i) => open(manifest[i].src)} />;
+```
+
+It draws one panel per parameter that differs between points, plotting the chosen quantity at the last frame of each run against that parameter. Where more than one parameter varies, a panel draws one curve for each combination of the others' values, named in its legend: a grid of wind speeds and depower settings gives a curve per depower against wind speed, and a curve per wind speed against depower. The list above the panels offers every quantity of `runQuantities`, and a run without one leaves a gap. Hover a marker to read its parameters and value, and click it to have `onOpen` called with that point and its index.
+
+| Export | What it gives |
+| --- | --- |
+| `sweepQuantities(points)` | each quantity at the last frame of each run, one value per point |
+| `sweepAxes(points)` | the parameters that vary |
+| `axisCurves(points, axis)` | the curves along one parameter: the points of each, in its order, and the other parameters it holds |
+
 ## Peer dependencies
 
 `react`, `react-dom`, `three`, `@react-three/fiber` and `@react-three/drei` are

@@ -28,6 +28,16 @@ export {
 } from "./quantities";
 export { RunPanels, TimePanel, type RunPanelsProps, type TimePanelProps } from "./TimePanel";
 export {
+  axisCurves,
+  sweepAxes,
+  sweepQuantities,
+  SweepView,
+  type SweepCurve,
+  type SweepPoint,
+  type SweepQuantity,
+  type SweepViewProps,
+} from "./SweepView";
+export {
   AWESIO_VERSION,
   canopyPositions,
   column,

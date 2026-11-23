@@ -16,20 +16,20 @@ import {
 import type { Run } from "./topology";
 
 const SERIES_COLORS = ["#3987e5", "#d95926", "#199e70", "#c98500"];
-const INK = "#d7dae1";
-const MUTED = "#9aa0ad";
+export const INK = "#d7dae1";
+export const MUTED = "#9aa0ad";
 const GRID = "#1b2030";
 const CURSOR = "#f2f3f5";
 
-const seriesColor = (line: number) => SERIES_COLORS[line % SERIES_COLORS.length];
+export const seriesColor = (line: number) => SERIES_COLORS[line % SERIES_COLORS.length];
 
-const PLOT_HEIGHT = 96;
-const MARGIN = { left: 44, right: 8, top: 6, bottom: 18 };
+export const PLOT_HEIGHT = 96;
+export const MARGIN = { left: 44, right: 8, top: 6, bottom: 18 };
 const DEFAULT_WIDTH = 400;
 
 const monospace = "12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace";
 
-const stripStyle: CSSProperties = {
+export const stripStyle: CSSProperties = {
   flex: "0 1 auto",
   maxHeight: "45%",
   overflowY: "auto",
@@ -38,7 +38,7 @@ const stripStyle: CSSProperties = {
   font: monospace,
 };
 
-const gridStyle: CSSProperties = {
+export const gridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
   gap: "0.5rem 0.75rem",
@@ -52,7 +52,7 @@ const removeStyle: CSSProperties = {
   font: "inherit",
 };
 
-const barStyle: CSSProperties = { display: "flex", alignItems: "center", gap: "0.75rem" };
+export const barStyle: CSSProperties = { display: "flex", alignItems: "center", gap: "0.75rem" };
 
 /** Round axis ticks inside `min..max`, at most about `count + 1` of them. */
 export function niceTicks(min: number, max: number, count: number): number[] {
@@ -98,12 +98,27 @@ export function timeAtX(px: number, width: number, start: number, end: number): 
   return start + fraction * (end - start);
 }
 
-/** The finite range of `quantities`, widened where they are flat. */
-function valueRange(quantities: Quantity[]): [number, number] {
+/** Pixel positions in a panel `width` wide of an x in `left..right` and a value in `min..max`. */
+export function plotScales(
+  width: number,
+  [left, right]: [number, number],
+  [min, max]: [number, number],
+) {
+  const plotWidth = width - MARGIN.left - MARGIN.right;
+  const plotHeight = PLOT_HEIGHT - MARGIN.bottom - MARGIN.top;
+  return {
+    x: (along: number) => MARGIN.left + ((along - left) / (right - left)) * plotWidth,
+    y: (value: number) => MARGIN.top + ((max - value) / (max - min)) * plotHeight,
+  };
+}
+
+/** The finite range of `series`, widened where they are flat. */
+export function valueRange(series: ArrayLike<number>[]): [number, number] {
   let min = Infinity;
   let max = -Infinity;
-  for (const { values } of quantities) {
-    for (const value of values) {
+  for (const values of series) {
+    for (let i = 0; i < values.length; i++) {
+      const value = values[i];
       if (!Number.isFinite(value)) continue;
       min = Math.min(min, value);
       max = Math.max(max, value);
@@ -114,12 +129,13 @@ function valueRange(quantities: Quantity[]): [number, number] {
   return [min - margin, max + margin];
 }
 
-function formatValue(value: number): string {
+/** `value` to four significant figures, or a dash where it is not finite. */
+export function formatValue(value: number): string {
   return Number.isFinite(value) ? String(Number(value.toPrecision(4))) : "–";
 }
 
 /** The width of the element behind the returned ref, following it as it resizes. */
-function useWidth() {
+export function useWidth() {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   useEffect(() => {
@@ -165,10 +181,10 @@ function PanelReadout({ quantities, read, onRemove }: {
   );
 }
 
-/** Horizontal gridlines with their values, and the time ticks along the bottom. */
-function PanelAxes({ valueTicks, timeTicks, x, y, right }: {
+/** Horizontal gridlines with their values, and the ticks of `x` along the bottom. */
+export function PanelAxes({ valueTicks, xTicks, x, y, right }: {
   valueTicks: number[];
-  timeTicks: number[];
+  xTicks: number[];
   x: (time: number) => number;
   y: (value: number) => number;
   right: number;
@@ -183,7 +199,7 @@ function PanelAxes({ valueTicks, timeTicks, x, y, right }: {
           </text>
         </g>
       ))}
-      {timeTicks.map((tick) => (
+      {xTicks.map((tick) => (
         <text
           key={tick}
           x={x(tick)}
@@ -219,18 +235,15 @@ export function TimePanel({ quantities, times, frame, onSeek, onRemove }: TimePa
   const bottom = PLOT_HEIGHT - MARGIN.bottom;
 
   const { x, y, valueTicks, paths } = useMemo(() => {
-    const [min, max] = valueRange(quantities);
-    const plotWidth = width - MARGIN.left - MARGIN.right;
-    const x = (time: number) => MARGIN.left + ((time - start) / (end - start)) * plotWidth;
-    const y = (value: number) =>
-      MARGIN.top + ((max - value) / (max - min)) * (bottom - MARGIN.top);
+    const [min, max] = valueRange(quantities.map(({ values }) => values));
+    const { x, y } = plotScales(width, [start, end], [min, max]);
     return {
       x,
       y,
       valueTicks: niceTicks(min, max, 2),
       paths: quantities.map(({ values, periodic }) => seriesPath(values, times, x, y, periodic)),
     };
-  }, [quantities, times, width, start, end, bottom]);
+  }, [quantities, times, width, start, end]);
 
   const frameUnder = (event: PointerEvent<SVGSVGElement>) => {
     const left = event.currentTarget.getBoundingClientRect().left;
@@ -257,7 +270,7 @@ export function TimePanel({ quantities, times, frame, onSeek, onRemove }: TimePa
       >
         <PanelAxes
           valueTicks={valueTicks}
-          timeTicks={niceTicks(start, end, 4)}
+          xTicks={niceTicks(start, end, 4)}
           x={x}
           y={y}
           right={width - MARGIN.right}
